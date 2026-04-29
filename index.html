@@ -275,6 +275,7 @@ td{padding:9px 12px;vertical-align:middle;}
   <div class="tab on" onclick="sw('scanner')">📡 스캐너 <span class="tbadge" id="tc-s">0</span></div>
   <div class="tab" onclick="sw('gunpowder')">🔥 화약고 <span class="tbadge" id="tc-g">0</span></div>
   <div class="tab sq-tab" onclick="sw('squeeze')">⚡ 숏스퀴즈 <span class="tbadge hot" id="tc-sq">0</span></div>
+  <div class="tab" onclick="sw('presqueeze')" style="color:var(--purple)">⏳ 예열중 <span class="tbadge" id="tc-pre" style="background:var(--purple-dim);border-color:rgba(187,102,255,.3);color:var(--purple)">0</span></div>
   <div class="tab" onclick="sw('history')">📦 히스토리 <span class="tbadge" id="tc-h">0</span></div>
   <div class="tab" onclick="sw('pattern')">🔬 패턴</div>
   <div class="tab" onclick="sw('whale')">🐋 고래</div>
@@ -369,6 +370,85 @@ td{padding:9px 12px;vertical-align:middle;}
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- 예열중 PRE-SQUEEZE -->
+<div class="tab-panel" id="panel-presqueeze">
+
+  <!-- 설명 배너 -->
+  <div style="background:linear-gradient(135deg,rgba(187,102,255,.08),rgba(0,170,255,.04));border:1px solid rgba(187,102,255,.3);border-radius:12px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+    <div style="font-size:26px;animation:pulse2 2s infinite">⏳</div>
+    <div style="flex:1">
+      <div style="font-family:'Orbitron',monospace;font-size:12px;color:var(--purple);margin-bottom:4px">예열 중 (PRE-SQUEEZE) — 터지기 전 코인 탐지</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7">
+        가격은 아직 <strong style="color:var(--yellow)">횡보(-5%~+5%)</strong> 중이지만 내부적으로 조건이 갖춰지는 코인<br>
+        숏 축적 중 + OI 증가 + CVD 전환 시작 = <strong style="color:var(--purple)">화약 다 쌓였는데 아직 불 안 붙은 상태</strong>
+      </div>
+    </div>
+    <div style="text-align:center">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--purple)" id="preBannerNum">0</div>
+      <div style="font-size:10px;color:var(--text-dim)">예열 코인</div>
+    </div>
+  </div>
+
+  <!-- 조건 설명 -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:14px">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px">
+      <div style="font-size:16px;margin-bottom:5px">📊</div>
+      <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">① 가격 횡보</div>
+      <div style="font-size:11px;color:var(--text2)">24h 등락 <span style="color:var(--yellow);font-weight:700">-5% ~ +5%</span><br>아직 급등 안 한 상태</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px">
+      <div style="font-size:16px;margin-bottom:5px">📈</div>
+      <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">② OI 축적 중</div>
+      <div style="font-size:11px;color:var(--text2)">OI 4h <span style="color:var(--green);font-weight:700">+10% 이상</span><br>포지션 서서히 쌓이는 중</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px">
+      <div style="font-size:16px;margin-bottom:5px">⚡</div>
+      <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">③ 숏 축적</div>
+      <div style="font-size:11px;color:var(--text2)">펀딩비 <span style="color:var(--green);font-weight:700">음수</span><br>숏이 과하게 쌓이는 중</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px">
+      <div style="font-size:16px;margin-bottom:5px">🌊</div>
+      <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">④ CVD 전환 시작</div>
+      <div style="font-size:11px;color:var(--text2)">CVD <span style="color:var(--orange);font-weight:700">0 근처 or 상승 전환</span><br>매수세 막 유입 시작</div>
+    </div>
+  </div>
+
+  <!-- 예열 코인 테이블 -->
+  <div class="tbox">
+    <div class="tbox-hdr">
+      <div class="tbox-title" style="color:var(--purple)">⏳ 예열 중 코인 (선진입 후보)</div>
+      <div class="tbox-sub">점수 높을수록 조건 많이 충족 · 가격 아직 횡보 중인 코인만 표시</div>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>#</th>
+          <th>SYMBOL</th>
+          <th>예열점수</th>
+          <th>① 24h%</th>
+          <th>② OI4h</th>
+          <th>③ 펀딩</th>
+          <th>④ CVD</th>
+          <th>거래량</th>
+          <th>충족조건</th>
+          <th>상태</th>
+        </tr></thead>
+        <tbody id="preBody">
+          <tr><td colspan="10"><div class="loading"><div class="spin" style="border-top-color:var(--purple)"></div><div class="loading-txt">예열 코인 탐색 중...</div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 안내 -->
+  <div style="padding:12px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;font-size:11px;color:var(--text-dim);line-height:1.8">
+    ⚠️ <strong style="color:var(--yellow)">주의사항</strong><br>
+    · 예열 중 코인은 급등 보장이 아닌 <strong>조건 형성 중</strong>인 코인입니다<br>
+    · 횡보가 길어지거나 조건이 무너지면 목록에서 사라집니다<br>
+    · 숏스퀴즈 탭과 함께 보면 더 효과적입니다
   </div>
 </div>
 
@@ -762,6 +842,7 @@ async function fetchSqData(coins){
   document.getElementById('sqBannerNum').textContent=sqData.length;
   document.getElementById('tc-sq').textContent=sqData.length;
   renderSqueeze();
+  renderPreSqueeze();
 
   sqData.filter(d=>d.sq.grade==='FULL').slice(0,2).forEach(d=>{
     showAlertItem(`🚨 ${d.symbol} 숏스퀴즈 FULL!`,`4개 조건 충족 · 점수${d.score} · 펀딩${d.funding.toFixed(3)}%`,'sq');
@@ -1000,6 +1081,110 @@ function renderPattern(){
 }
 
 // ════════════════════════════
+//  PRE-SQUEEZE 예열 분석
+// ════════════════════════════
+function calcPreScore(item, cvd) {
+  let sc = 0;
+  const conds = [];
+
+  // ① 가격 횡보 (-5% ~ +5%) — 핵심 조건
+  const isFlat = item.change24h >= -5 && item.change24h <= 5;
+  if (!isFlat) return null; // 이미 급등/급락한 코인 제외
+
+  // ② OI 4h 축적 (+10% 이상)
+  if (item.oi4h >= 10) { sc += 35; conds.push('OI축적'); }
+  else if (item.oi4h >= 5) { sc += 15; conds.push('OI증가'); }
+
+  // ③ 펀딩비 음수 (숏 축적)
+  if (item.funding < -0.1) { sc += 30; conds.push('숏과열'); }
+  else if (item.funding < -0.03) { sc += 15; conds.push('음펀딩'); }
+
+  // ④ CVD 전환 시작 (0 근처 or 약한 양수)
+  if (cvd) {
+    if (cvd.ratio > 0.02 && cvd.ratio < 0.3) { sc += 25; conds.push('CVD전환'); }
+    else if (cvd.ratio >= 0.3) { sc += 10; conds.push('CVD상승'); } // 이미 많이 올라간 건 감점
+  }
+
+  // ⑤ OI 1h도 양수 (단기 모멘텀 시작)
+  if (item.oi1h > 3) { sc += 10; conds.push('단기OI↑'); }
+
+  // 거래량이 평소보다 살짝 증가 (폭발 전 조짐)
+  if (item.volRatio > 0.3 && item.volRatio < 2) { sc += 10; }
+
+  // 점수 15 미만이면 제외 (의미없는 코인)
+  if (sc < 15) return null;
+
+  // 예열 상태 판정
+  let status, statusColor;
+  if (sc >= 80) { status = '🔴 발화직전'; statusColor = 'var(--red)'; }
+  else if (sc >= 60) { status = '🟠 예열강함'; statusColor = 'var(--orange)'; }
+  else if (sc >= 40) { status = '🟡 예열중'; statusColor = 'var(--yellow)'; }
+  else { status = '🟢 초기감지'; statusColor = 'var(--green)'; }
+
+  return { sc: Math.min(99, sc), conds, status, statusColor };
+}
+
+function renderPreSqueeze() {
+  // allData + sqData(CVD 있음) 조합
+  const cvdMap = {};
+  sqData.forEach(d => { if (d.cvd) cvdMap[d.symbol] = d.cvd; });
+
+  const preData = allData
+    .map(d => {
+      const cvd = cvdMap[d.symbol] || cache.getCVD(d.fullSym);
+      const pre = calcPreScore(d, cvd);
+      if (!pre) return null;
+      return { ...d, pre, cvd };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.pre.sc - a.pre.sc);
+
+  // 카운트 업데이트
+  document.getElementById('tc-pre').textContent = preData.length;
+  document.getElementById('preBannerNum').textContent = preData.length;
+
+  if (!preData.length) {
+    document.getElementById('preBody').innerHTML = `<tr><td colspan="10"><div class="empty">예열 중인 코인 없음<br><small>현재 횡보(-5%~+5%) + 조건 충족 코인이 없습니다</small></div></td></tr>`;
+    return;
+  }
+
+  document.getElementById('preBody').innerHTML = preData.map((d, i) => {
+    const cvdRatio = d.cvd ? d.cvd.ratio : 0;
+    const cvdPct = Math.min(100, Math.abs(cvdRatio) * 100);
+    const cvdColor = cvdRatio >= 0 ? 'var(--green)' : 'var(--red)';
+
+    return `<tr style="${d.pre.sc >= 70 ? 'background:rgba(187,102,255,.04)' : ''}">
+      <td class="dim mono">${i+1}</td>
+      <td class="sym">${d.symbol}</td>
+      <td>
+        <div class="score-wrap">
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:var(--purple)">${d.pre.sc}</span>
+          <div class="score-bar"><div class="score-fill" style="width:${d.pre.sc}%;background:var(--purple)"></div></div>
+        </div>
+      </td>
+      <td class="mono ${d.change24h>=0?'pos':'neg'}">${fmt(d.change24h)}%
+        <div style="font-size:9px;color:var(--text-dim)">횡보중</div>
+      </td>
+      <td class="mono ${d.oi4h>=0?'pos':'neg'}">${fmt(d.oi4h)}%</td>
+      <td class="mono ${d.funding<0?'pos':'neg'}">${d.funding.toFixed(4)}%</td>
+      <td>
+        <div class="cvd-bar" style="width:60px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;display:inline-block;vertical-align:middle">
+          <div style="height:100%;width:${cvdPct}%;background:${cvdColor};border-radius:2px"></div>
+        </div>
+        <span class="mono" style="font-size:9px;color:${cvdColor};margin-left:4px">${(cvdRatio*100).toFixed(1)}%</span>
+      </td>
+      <td class="mono">${fmtV(d.volume24h)}</td>
+      <td>
+        <div style="display:flex;gap:3px;flex-wrap:wrap">
+          ${d.pre.conds.map(c => `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(187,102,255,.1);border:1px solid rgba(187,102,255,.25);color:var(--purple);font-family:'JetBrains Mono',monospace">${c}</span>`).join('')}
+        </div>
+      </td>
+      <td><span style="font-size:10px;font-weight:700;color:${d.pre.statusColor}">${d.pre.status}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ════════════════════════════
 //  알림
 // ════════════════════════════
 function checkAlerts(cands){
@@ -1035,7 +1220,7 @@ function exportCSV(){
 }
 
 function sw(name){
-  const ns=['scanner','gunpowder','squeeze','history','pattern','whale','exchange'];
+  const ns=['scanner','gunpowder','squeeze','presqueeze','history','pattern','whale','exchange'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',ns[i]===name));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('panel-'+name).classList.add('on');
