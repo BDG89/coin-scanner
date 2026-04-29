@@ -280,6 +280,7 @@ td{padding:9px 12px;vertical-align:middle;}
   <div class="tab" onclick="sw('history')">📦 히스토리 <span class="tbadge" id="tc-h">0</span></div>
   <div class="tab" onclick="sw('pattern')">🔬 패턴</div>
   <div class="tab" onclick="sw('whale')">🐋 고래</div>
+  <div class="tab" onclick="sw('cexwallet')" style="color:#ff9500">🏛 제단지갑 <span class="tbadge" id="tc-cex" style="background:rgba(255,149,0,.1);border-color:rgba(255,149,0,.3);color:#ff9500">0</span></div>
   <div class="tab" onclick="sw('exchange')">🏦 거래소</div>
 </div>
 
@@ -502,6 +503,35 @@ td{padding:9px 12px;vertical-align:middle;}
   </div>
   <div class="tbox"><div class="tbox-hdr"><div class="tbox-title">⚡ 롱/숏 비율</div></div>
     <div style="overflow-x:auto"><table><thead><tr><th>SYMBOL</th><th>롱%</th><th>숏%</th><th>OI</th><th>청산위험</th><th>방향</th></tr></thead><tbody id="lsBody"><tr><td colspan="6"><div class="loading"><div class="spin"></div></div></td></tr></tbody></table></div>
+  </div>
+</div>
+
+<!-- 제단지갑 -->
+<div class="tab-panel" id="panel-cexwallet">
+  <div style="padding:12px 16px;background:rgba(255,149,0,.06);border:1px solid rgba(255,149,0,.25);border-radius:10px;margin-bottom:14px">
+    <div style="font-family:'Orbitron',monospace;font-size:11px;color:#ff9500;margin-bottom:6px">🏛 제단지갑 (거래소 대량 이동) 감지</div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.7">
+      거래소 지갑으로 <strong style="color:var(--red)">대량 유입</strong> = 세력 매도 준비 (하락 신호)<br>
+      거래소 지갑에서 <strong style="color:var(--green)">대량 유출</strong> = 세력 매집/홀딩 (상승 신호)<br>
+      <span style="color:var(--yellow)">이상 거래량</span> = OI 급변 + 거래량 폭발 = 세력 개입 의심
+    </div>
+  </div>
+  <!-- 경보 -->
+  <div class="tbox" style="margin-bottom:14px">
+    <div class="tbox-hdr"><div class="tbox-title" style="color:#ff9500">🚨 실시간 경보</div><div class="tbox-sub">대량 이동 상위 5개</div></div>
+    <div id="cexAlertBody"><div class="empty">데이터 분석 중...</div></div>
+  </div>
+  <!-- 메인 테이블 -->
+  <div class="tbox">
+    <div class="tbox-hdr"><div class="tbox-title" style="color:#ff9500">📊 제단지갑 이동 전체 목록</div><div class="tbox-sub">OI변화 + 거래량 + 가격 복합 분석</div></div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>#</th><th>SYMBOL</th><th>신호</th><th>24h%</th><th>OI4h</th><th>펀딩</th><th>거래량</th><th>강도</th><th>분석</th>
+        </tr></thead>
+        <tbody id="cexBody"><tr><td colspan="9"><div class="loading"><div class="spin" style="border-top-color:#ff9500"></div><div class="loading-txt">제단지갑 분석 중...</div></div></td></tr></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -955,8 +985,12 @@ function renderSqueeze(){
 }
 
 function renderWhale(){
-  const data=allData;
-  document.getElementById('whaleList').innerHTML=data.filter(d=>Math.abs(d.oi4h)>40||d.volRatio>2).sort((a,b)=>b.volume24h-a.volume24h).slice(0,8).map(d=>`
+  if(!allData.length){
+    ['whaleList','whaleConc','lsBody'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<div class="empty" style="padding:20px;text-align:center;color:var(--text-dim)">데이터 로드 중...</div>';});
+    return;
+  }
+  const data=[...allData];
+  document.getElementById('whaleList').innerHTML=data.filter(d=>Math.abs(d.oi4h)>15||d.volRatio>1.2).sort((a,b)=>b.volume24h-a.volume24h).slice(0,10).map(d=>`
     <div style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid rgba(20,30,56,.5)">
       <div class="sym" style="width:65px">${d.symbol}</div>
       <div style="flex:1;font-size:10px;color:var(--text-dim)">OI4h:<span class="${d.oi4h>=0?'pos':'neg'}">${fmt(d.oi4h,1)}%</span></div>
@@ -976,6 +1010,56 @@ function renderWhale(){
     const dropping = cached ? cached.dropping : false;
     return`<tr><td class="sym">${d.symbol}</td><td class="mono pos">${lp}%</td><td class="mono neg">${sp}%</td><td class="mono">${fmtV(d.volume24h)}</td><td>${lp>70?'🔴롱청산':sp>70?'🟢숏청산':'🟡균형'}</td><td>${dirHtml(d.dir)}</td></tr>`;
   }).join('');
+}
+
+function renderCEXWallet(){
+  if(!allData.length) return;
+  const data=[...allData];
+  const walletData=data.map(d=>{
+    // 대량 유입: 가격↓ + OI↓ + 거래량↑ = 세력 던지기
+    const isInflow=d.change24h<-2&&d.oi4h<-10&&d.volRatio>0.8;
+    // 대량 유출: 가격↑ + OI↑ + 음펀딩 = 세력 매집
+    const isOutflow=d.change24h>2&&d.oi4h>15&&d.funding<-0.05;
+    // 이상 거래량: 거래량 2배+ + OI 급변
+    const isSuspect=d.volRatio>1.8&&Math.abs(d.oi4h)>25;
+    let signal='';
+    if(isInflow)signal='🔴 대량유입';
+    else if(isOutflow)signal='🟢 대량유출';
+    else if(isSuspect)signal='🟡 이상거래량';
+    else return null;
+    const strength=Math.abs(d.oi4h)*0.4+d.volRatio*30+Math.abs(d.change24h)*2;
+    return{...d,signal,strength,isInflow,isOutflow,isSuspect};
+  }).filter(Boolean).sort((a,b)=>b.strength-a.strength);
+
+  document.getElementById('tc-cex').textContent=walletData.length;
+
+  if(!walletData.length){
+    document.getElementById('cexBody').innerHTML='<tr><td colspan="9"><div class="empty">현재 대량 이동 감지된 코인 없음</div></td></tr>';
+    document.getElementById('cexAlertBody').innerHTML='<div class="empty" style="padding:20px;text-align:center;color:var(--text-dim)">이상 거래 없음</div>';
+    return;
+  }
+
+  document.getElementById('cexAlertBody').innerHTML=walletData.slice(0,5).map(d=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(20,30,56,.4)">
+      <div style="font-size:18px">${d.isInflow?'📤':d.isOutflow?'📥':'⚡'}</div>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:12px;color:#fff">${d.symbol} <span style="${d.isInflow?'color:var(--red)':d.isOutflow?'color:var(--green)':'color:var(--yellow)'}">${d.signal}</span></div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:2px">거래량 ${fmtV(d.volume24h)} · OI4h ${fmt(d.oi4h,1)}% · 펀딩 ${d.funding.toFixed(3)}%</div>
+      </div>
+      <div class="mono ${d.change24h>=0?'pos':'neg'}" style="font-size:12px;font-weight:700">${fmt(d.change24h)}%</div>
+    </div>`).join('');
+
+  document.getElementById('cexBody').innerHTML=walletData.map((d,i)=>`<tr>
+    <td class="dim mono">${i+1}</td>
+    <td class="sym">${d.symbol}</td>
+    <td><span style="font-size:11px;font-weight:700;${d.isInflow?'color:var(--red)':d.isOutflow?'color:var(--green)':'color:var(--yellow)'}">${d.signal}</span></td>
+    <td class="mono ${d.change24h>=0?'pos':'neg'}">${fmt(d.change24h)}%</td>
+    <td class="mono ${d.oi4h>=0?'pos':'neg'}">${fmt(d.oi4h,1)}%</td>
+    <td class="mono ${d.funding<0?'pos':'neg'}">${d.funding.toFixed(3)}%</td>
+    <td class="mono">${fmtV(d.volume24h)}</td>
+    <td><div style="height:4px;background:var(--border);border-radius:2px;width:70px;overflow:hidden"><div style="height:100%;width:${Math.min(100,d.strength)}%;background:${d.isInflow?'var(--red)':d.isOutflow?'var(--green)':'var(--yellow)'};border-radius:2px"></div></div></td>
+    <td style="font-size:10px;color:var(--text-dim)">${d.isInflow?'세력 던지기':d.isOutflow?'세력 매집':'이상 거래'}</td>
+  </tr>`).join('');
 }
 
 function renderExchange(){
@@ -1246,7 +1330,7 @@ function exportCSV(){
 }
 
 function sw(name){
-  const ns=['scanner','gunpowder','squeeze','presqueeze','history','pattern','whale','exchange'];
+  const ns=['scanner','gunpowder','squeeze','presqueeze','history','pattern','whale','cexwallet','exchange'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',ns[i]===name));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('panel-'+name).classList.add('on');
