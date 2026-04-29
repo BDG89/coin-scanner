@@ -230,6 +230,7 @@ td{padding:9px 12px;vertical-align:middle;}
   <div class="hdr-r">
     <div class="badge badge-live"><div class="live-dot"></div>LIVE</div>
     <div class="badge badge-t" id="lastUpdate">--:--:--</div>
+    <button class="btn" onclick="openSearch()" style="border-color:var(--blue);color:var(--blue)">🔍 검색</button>
     <button class="btn pri" onclick="fetchAll()">⟳ 새로고침</button>
   </div>
 </header>
@@ -280,6 +281,31 @@ td{padding:9px 12px;vertical-align:middle;}
   <div class="tab" onclick="sw('pattern')">🔬 패턴</div>
   <div class="tab" onclick="sw('whale')">🐋 고래</div>
   <div class="tab" onclick="sw('exchange')">🏦 거래소</div>
+</div>
+
+<!-- 검색 모달 -->
+<div id="searchModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:2000;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;width:90%;max-width:700px;max-height:85vh;overflow:hidden;display:flex;flex-direction:column">
+    <!-- 검색 헤더 -->
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
+      <span style="font-size:18px">🔍</span>
+      <input id="searchInput" type="text" placeholder="코인 검색... (예: BIO, SOL, PEPE)" 
+        style="flex:1;background:transparent;border:none;outline:none;font-family:'JetBrains Mono',monospace;font-size:16px;color:var(--text)"
+        oninput="doSearch(this.value)" onkeydown="if(event.key==='Escape')closeSearch()">
+      <button onclick="closeSearch()" style="background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <!-- 검색 결과 -->
+    <div id="searchResults" style="overflow-y:auto;padding:8px 0;flex:1">
+      <div style="text-align:center;padding:30px;color:var(--text-dim);font-size:12px">코인명 입력하면 바로 검색됩니다</div>
+    </div>
+  </div>
+</div>
+
+<!-- 코인 상세 모달 -->
+<div id="detailModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:2100;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;width:90%;max-width:600px;max-height:85vh;overflow-y:auto">
+    <div id="detailContent" style="padding:24px"></div>
+  </div>
 </div>
 
 <!-- 스캐너 -->
@@ -1231,8 +1257,132 @@ function setF(f){curFilter=f;['all','long','short'].forEach(x=>document.getEleme
 function setS(s){curMinScore=s;[30,50,70].forEach(x=>document.getElementById('s'+x).classList.toggle('on',x===s));renderScanner();}
 function sortBy(k){curSort.key===k?curSort.dir*=-1:(curSort={key:k,dir:-1});renderScanner();}
 
+// ════════════════════════════
+//  🔍 코인 검색 + 상세보기
+// ════════════════════════════
+function openSearch() {
+  document.getElementById('searchModal').style.display='flex';
+  setTimeout(()=>document.getElementById('searchInput').focus(),100);
+}
+function closeSearch() {
+  document.getElementById('searchModal').style.display='none';
+  document.getElementById('searchInput').value='';
+  document.getElementById('searchResults').innerHTML='<div style="text-align:center;padding:30px;color:var(--text-dim);font-size:12px">코인명 입력하면 바로 검색됩니다</div>';
+}
+function doSearch(query) {
+  const q=query.trim().toUpperCase();
+  if(!q){document.getElementById('searchResults').innerHTML='<div style="text-align:center;padding:30px;color:var(--text-dim);font-size:12px">코인명 입력하면 바로 검색됩니다</div>';return;}
+  const results=allData.filter(d=>d.symbol.includes(q));
+  if(!results.length){
+    document.getElementById('searchResults').innerHTML=`<div style="text-align:center;padding:30px;color:var(--text-dim);font-size:12px"><div style="font-size:24px;margin-bottom:8px">🔍</div>"<span style="color:var(--yellow)">${q}</span>" 검색 결과 없음<br><small>데이터 로드 후 검색 가능합니다</small></div>`;
+    return;
+  }
+  document.getElementById('searchResults').innerHTML=results.map(d=>{
+    const sq=sqData.find(s=>s.symbol===d.symbol);
+    const cvd=cache.getCVD(d.fullSym);
+    const pre=calcPreScore(d,cvd);
+    const sqGrade=sq?sq.sq.grade:null;
+    return`<div onclick="showDetail('${d.symbol}')" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(20,30,56,.5);cursor:pointer;transition:background .12s" onmouseover="this.style.background='rgba(0,255,136,.03)'" onmouseout="this.style.background='transparent'">
+      <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:#fff;width:80px">${d.symbol}</div>
+      <div style="flex:1">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span class="${d.change24h>=0?'pos':'neg'}" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700">${fmt(d.change24h)}%</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim)">${d.price<1?d.price.toFixed(6):d.price.toLocaleString()}</span>
+          ${sqGrade==='FULL'?'<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(255,51,85,.15);border:1px solid rgba(255,51,85,.3);color:var(--red);font-weight:700">🔴FULL</span>':''}
+          ${sqGrade==='HIGH'?'<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--orange-dim);border:1px solid rgba(255,119,0,.3);color:var(--orange);font-weight:700">🟠HIGH</span>':''}
+          ${pre?`<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--purple-dim);border:1px solid rgba(187,102,255,.3);color:var(--purple)">${pre.status}</span>`:''}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px;font-size:10px;color:var(--text-dim)">
+          <span>펀딩 <span class="${d.funding<0?'pos':'neg'}">${d.funding.toFixed(3)}%</span></span>
+          <span>OI4h <span class="${d.oi4h>=0?'pos':'neg'}">${fmt(d.oi4h,1)}%</span></span>
+          <span>거래량 ${fmtV(d.volume24h)}</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <span class="score-num ${scCls(d.score)}" style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px">${d.score}</span>
+        ${d.layer>=1?`<span class="ly ly${Math.min(d.layer,3)}">L${d.layer}</span>`:''}
+      </div>
+      <span style="color:var(--text-dim)">›</span>
+    </div>`;
+  }).join('');
+}
+
+function showDetail(symbol) {
+  const d=allData.find(x=>x.symbol===symbol);
+  if(!d) return;
+  const sq=sqData.find(s=>s.symbol===symbol);
+  const cvd=cache.getCVD(d.fullSym);
+  const ls=cache.getLS(d.fullSym);
+  const pre=calcPreScore(d,cvd);
+
+  const sqHtml=sq?`<div style="margin-bottom:14px;padding:12px;background:rgba(255,119,0,.06);border:1px solid rgba(255,119,0,.25);border-radius:10px">
+    <div style="font-size:11px;color:var(--orange);font-weight:700;margin-bottom:8px">⚡ 숏스퀴즈 분석</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:var(--text2)">
+      <div>${sq.sq.c1?'✅':'❌'} 가격↑ + 롱비율↓</div>
+      <div>${sq.sq.c2?'✅':'❌'} OI 증가</div>
+      <div>${sq.sq.c3?'✅':'❌'} CVD 상승 변곡</div>
+      <div>${sq.sq.c4?'✅':'❌'} 음펀비 과열</div>
+    </div>
+    <div style="margin-top:8px">${gradeHtml(sq.sq.grade)}</div>
+  </div>`:'';
+
+  const preHtml=pre?`<div style="margin-bottom:14px;padding:12px;background:rgba(187,102,255,.06);border:1px solid rgba(187,102,255,.25);border-radius:10px">
+    <div style="font-size:11px;color:var(--purple);font-weight:700;margin-bottom:6px">⏳ 예열 분석</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+      ${pre.conds.map(c=>`<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(187,102,255,.1);border:1px solid rgba(187,102,255,.25);color:var(--purple)">${c}</span>`).join('')}
+    </div>
+    <div style="font-size:12px;font-weight:700;color:${pre.statusColor}">${pre.status} (예열점수: ${pre.sc})</div>
+  </div>`:'';
+
+  document.getElementById('detailContent').innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#fff">${d.symbol}</div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:2px">Binance Futures · USDT Perpetual</div>
+      </div>
+      <button onclick="document.getElementById('detailModal').style.display='none'" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+      ${[['가격',d.price<1?d.price.toFixed(6):d.price.toLocaleString(),'#fff'],['24h%',(d.change24h>=0?'+':'')+d.change24h.toFixed(2)+'%',d.change24h>=0?'var(--green)':'var(--red)'],['점수',d.score,scCol(d.score)],['펀딩',d.funding.toFixed(4)+'%',d.funding<0?'var(--green)':'var(--red)'],['OI 1h',fmt(d.oi1h,1)+'%',d.oi1h>=0?'var(--green)':'var(--red)'],['OI 4h',fmt(d.oi4h,1)+'%',d.oi4h>=0?'var(--green)':'var(--red)']].map(([l,v,c])=>`
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:9px;color:var(--text-dim);margin-bottom:4px">${l}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${c}">${v}</div>
+      </div>`).join('')}
+    </div>
+    ${ls?`<div style="margin-bottom:14px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px">
+      <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">롱/숏 비율</div>
+      <div style="display:flex;border-radius:5px;overflow:hidden;height:18px">
+        <div style="width:${ls.longPct}%;background:rgba(0,255,136,.4);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff">롱 ${ls.longPct.toFixed(1)}%</div>
+        <div style="flex:1;background:rgba(255,51,85,.4);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff">숏 ${(100-ls.longPct).toFixed(1)}%</div>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:5px">${ls.dropping?'📉 롱 비율 감소 중':'📈 롱 비율 유지/증가'}</div>
+    </div>`:''}
+    ${cvd?`<div style="margin-bottom:14px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px">
+      <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">CVD (누적 거래량 델타)</div>
+      <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:5px">
+        <div style="height:100%;width:${Math.min(100,Math.abs(cvd.ratio)*100)}%;background:${cvd.ratio>=0?'var(--green)':'var(--red)'};border-radius:3px"></div>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700" class="${cvd.ratio>=0?'pos':'neg'}">${(cvd.ratio*100).toFixed(1)}% ${cvd.rising?'▲ 매수우세':'▼ 매도우세'}</div>
+    </div>`:''}
+    ${sqHtml}${preHtml}
+    <div style="margin-bottom:14px">
+      <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">감지된 시그널</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${d.sigs.length?d.sigs.map(s=>`<span style="font-size:20px">${s}</span>`).join(''):'<span style="font-size:11px;color:var(--text-dim)">없음</span>'}</div>
+    </div>
+    ${d.layer>=1?`<div style="padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--text2);margin-bottom:14px">
+      <span class="ly ly${Math.min(d.layer,3)}" style="margin-right:8px">LAYER ${d.layer}</span>
+      ${d.layer===3?'화약고 LAYER 3 — 모든 조건 충족':d.layer===2?'화약고 LAYER 2 — OI 급증 + 거래량 폭발':'LAYER 1 — 음수펀딩 + OI 상승 초기'}
+    </div>`:''}
+    <button onclick="document.getElementById('detailModal').style.display='none'" class="btn" style="width:100%;padding:10px">닫기</button>
+  `;
+  document.getElementById('detailModal').style.display='flex';
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){closeSearch();document.getElementById('detailModal').style.display='none';}
+});
+
 function startTimer(){
-  countdown=60;clearInterval(refreshTimer);
   refreshTimer=setInterval(()=>{
     countdown--;
     document.getElementById('timerTxt').textContent=`다음 ${countdown}초`;
