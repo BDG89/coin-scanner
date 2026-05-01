@@ -2876,10 +2876,16 @@ function clearHist(){if(!confirm('7일치 삭제?'))return;localStorage.removeIt
 function exportCSV(){
   const db=loadDB();
   const rows=[['날짜','심볼','방향','점수','레이어','가격','24h%','펀딩','OI1h','OI4h','거래량','CVD','시그널']];
-  Object.entries(db).sort().forEach(([date,coins])=>coins.forEach(c=>rows.push([date,c.symbol,c.dir,c.score,c.layer,c.price,c.change24h,c.funding,c.oi1h,c.oi4h,c.volume24h,c.hasCVD?'Y':'N',(c.sigs||[]).join(' ')])));
+  Object.entries(db).sort().forEach(([date,coins])=>coins.forEach(c=>rows.push([
+    date,c.symbol,c.dir,c.score,c.layer,c.price,c.change24h,
+    c.funding,c.oi1h,c.oi4h,c.volume24h,c.hasCVD?'Y':'N',(c.sigs||[]).join(' ')
+  ])));
+  const csv=rows.map(r=>r.join(',')).join('\n');
   const a=document.createElement('a');
-  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(rows.map(r=>r.join(',')).join('\n'));
-  a.download=`scanner_${todayKey()}.csv`;a.click();showToast('📥 CSV 다운로드');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='scanner_'+todayKey()+'.csv';
+  a.click();
+  showToast('📥 CSV 다운로드');
 }
 
 function sw(name){
@@ -3375,8 +3381,7 @@ function exportTrackCSV() {
     ]);
   });
   const a = document.createElement('a');
-  a.href = 'data:text/csv;charset=utf-8,﻿' + encodeURIComponent(rows.map(r=>r.join(',')).join('
-'));
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(rows.map(r=>r.join(',')).join('\n'));
   a.download = `track_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   showToast('📥 CSV 다운로드');
