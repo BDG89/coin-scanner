@@ -686,15 +686,16 @@ td{padding:9px 12px;vertical-align:middle;}
   <div class="tbox">
     <div class="tbox-hdr">
       <div class="tbox-title" style="color:#00ddff">⬇️ 눌림목 진입 후보</div>
-      <div class="tbox-sub">🎯진입 = 5개+조건 점수65+ · 👀대기 = 4개+조건 점수52+ · 관망은 표시 안 함</div>
+      <div class="tbox-sub">🎯강진입=점수80+ · 🎯진입=65+ · 👀대기=50+ · RSI+BB+VWAP+캔들 추가지표 · ${learnWeights.get().dataCount?'AI가중치 적용중':'기본가중치'}</div>
     </div>
     <div style="overflow-x:auto">
       <table>
         <thead><tr>
-          <th>#</th><th>SYMBOL</th><th>눌림점수</th>
-          <th>📍눌림깊이</th><th>📈OI유지</th><th>📉거래량축소</th>
-          <th>🌊CVD바닥</th><th>⚡펀딩유지</th><th>📊숏비율</th>
-          <th>거래량</th><th>판정</th>
+          <th>#</th><th>SYMBOL</th><th>점수★</th>
+          <th>📍깊이</th><th>📊RSI</th><th>📈BB위치</th>
+          <th>💧VWAP</th><th>🕯캔들</th>
+          <th>OI유지</th><th>거래량↓</th>
+          <th class="hide-m">거래량</th><th>판정</th>
         </tr></thead>
         <tbody id="pbBody">
           <tr><td colspan="11"><div class="loading"><div class="spin" style="border-top-color:#00ddff"></div><div class="loading-txt">눌림목 분석 중... (Kline 데이터 수집)</div></div></td></tr>
@@ -1959,6 +1960,79 @@ function renderPattern(){
 // ════════════════════════════
 //  눌림목 전용 상태
 // ════════════════════════════
+// ════════════════════════════
+//  히스토리 기반 가중치 학습
+// ════════════════════════════
+const learnWeights = {
+  // 기본 가중치 (데이터 없을 때)
+  defaults: {
+    depth: 22, oi: 18, vol: 15, cvd: 12, funding: 8, ls: 5
+  },
+  // 학습된 가중치 (히스토리 데이터로 계산)
+  learned: null,
+  // 마지막 학습 시각
+  lastCalc: 0,
+
+  // 히스토리 데이터로 가중치 계산
+  calc() {
+    // 5분마다만 재계산
+    if (Date.now() - this.lastCalc < 300000 && this.learned) return this.learned;
+
+    try {
+      const db = loadTrackDB();
+      const done = db.filter(d => d.tab === 'pullback' && d.result !== null && d.gainPct24h !== null);
+      if (done.length < 10) return this.defaults; // 데이터 부족
+
+      // 각 지표별 승리 기여도 계산
+      const indicators = ['depth','oi','vol','cvd','funding','ls'];
+      const scores = {};
+
+      // 지표별 상관관계 분석
+      // gainPct24h가 높을수록 해당 지표 점수 높은 코인이 많으면 → 가중치 ↑
+      done.forEach(d => {
+        const isWin = d.gainPct24h >= 5;
+        // 각 조건 추정 (저장된 데이터로)
+        if (d.pbDepth >= 8 && d.pbDepth <= 14) { scores.depth = (scores.depth||{w:0,l:0}); isWin ? scores.depth.w++ : scores.depth.l++; }
+        if (d.oi4h > 5) { scores.oi = (scores.oi||{w:0,l:0}); isWin ? scores.oi.w++ : scores.oi.l++; }
+        if (d.volRatio < 0.7) { scores.vol = (scores.vol||{w:0,l:0}); isWin ? scores.vol.w++ : scores.vol.l++; }
+        if (d.cvdTurning) { scores.cvd = (scores.cvd||{w:0,l:0}); isWin ? scores.cvd.w++ : scores.cvd.l++; }
+        if (d.funding < -0.05) { scores.funding = (scores.funding||{w:0,l:0}); isWin ? scores.funding.w++ : scores.funding.l++; }
+      });
+
+      // 적중률 기반 가중치 조정
+      const getWinRate = (key) => {
+        const s = scores[key];
+        if (!s || (s.w + s.l) < 3) return 0.5; // 데이터 부족 → 기본값
+        return s.w / (s.w + s.l);
+      };
+
+      // 적중률이 높을수록 가중치 높임 (기본값 ±50% 범위)
+      const adjust = (base, key) => {
+        const wr = getWinRate(key);
+        const factor = 0.5 + wr; // 0.5 ~ 1.5
+        return Math.round(base * factor);
+      };
+
+      this.learned = {
+        depth:   adjust(22, 'depth'),
+        oi:      adjust(18, 'oi'),
+        vol:     adjust(15, 'vol'),
+        cvd:     adjust(12, 'cvd'),
+        funding: adjust(8,  'funding'),
+        ls:      adjust(5,  'ls'),
+        dataCount: done.length,
+      };
+      this.lastCalc = Date.now();
+      console.log('가중치 학습 완료:', this.learned);
+      return this.learned;
+    } catch(e) {
+      return this.defaults;
+    }
+  },
+
+  get() { return this.calc(); }
+};
+
 const pbState = {
   klineCache: {},     // { 'BTCUSDT': [...candles] }
   pbScoreEma: {},     // EMA 점수
@@ -2071,41 +2145,141 @@ async function analyzePullback(item) {
   const bigRedCount = recent6.filter(c => (c.open - c.close) / c.open > 0.03).length;
   if (bigRedCount >= 3) return null; // 너무 강한 하락
 
-  // ━━━ 점수 계산 (가중치 강화) ━━━
+  // ━━━ 추가 지표 계산 ━━━
+
+  // RSI 계산 (14봉)
+  const rsiCandles = candles.slice(-15);
+  let gains = 0, losses = 0;
+  for (let i = 1; i < rsiCandles.length; i++) {
+    const diff = rsiCandles[i].close - rsiCandles[i-1].close;
+    if (diff > 0) gains += diff; else losses -= diff;
+  }
+  const rsi = losses === 0 ? 100 : 100 - (100 / (1 + (gains/14) / (losses/14)));
+  // RSI 점수: 30~50 최적 눌림 구간
+  const rsiScore = rsi >= 30 && rsi <= 45 ? 4
+    : rsi >= 45 && rsi <= 55 ? 3
+    : rsi >= 25 && rsi <= 30 ? 2  // 과매도 직전
+    : rsi > 55 && rsi <= 65 ? 1
+    : 0; // RSI 너무 높거나 너무 낮으면 0
+
+  // VWAP 계산
+  const totalVol = candles.reduce((s,c) => s + c.vol, 0);
+  const vwap = candles.reduce((s,c) => s + ((c.high+c.low+c.close)/3) * c.vol, 0) / (totalVol||1);
+  const belowVwap = currentPrice < vwap;
+  const vwapScore = currentPrice < vwap * 0.98 ? 3  // VWAP 2% 이하 = 저평가 강함
+    : currentPrice < vwap ? 2
+    : currentPrice < vwap * 1.02 ? 1
+    : 0;
+
+  // 볼린저밴드 (20봉 기준)
+  const bb20 = candles.slice(-20);
+  const bbMa = bb20.reduce((s,c) => s + c.close, 0) / bb20.length;
+  const bbStd = Math.sqrt(bb20.reduce((s,c) => s + Math.pow(c.close - bbMa, 2), 0) / bb20.length);
+  const bbUpper = bbMa + bbStd * 2;
+  const bbLower = bbMa - bbStd * 2;
+  const bbPos = (currentPrice - bbLower) / (bbUpper - bbLower); // 0=하단, 1=상단
+  // BB 하단 근처가 최적
+  const bbScore = bbPos <= 0.2 ? 4  // BB 하단 터치 = 강한 지지
+    : bbPos <= 0.35 ? 3
+    : bbPos <= 0.5 ? 2   // 중간선 근처
+    : bbPos <= 0.65 ? 1
+    : 0;  // 상단 근처 = 아직 하락 가능
+
+  // 마지막 캔들 패턴 분석
+  const lastCandle = candles[candles.length-1];
+  const prevCandle = candles[candles.length-2];
+  const bodySize = Math.abs(lastCandle.close - lastCandle.open);
+  const totalSize = lastCandle.high - lastCandle.low;
+  const lowerWick = Math.min(lastCandle.open, lastCandle.close) - lastCandle.low;
+  const upperWick = lastCandle.high - Math.max(lastCandle.open, lastCandle.close);
+  // 망치형(Hammer): 아래꼬리 길고 몸통 작음
+  const isHammer = lowerWick > bodySize * 2 && upperWick < bodySize * 0.5 && totalSize > 0;
+  // 불 엔걸핑: 양봉이 전 음봉을 완전히 감쌈
+  const isBullEngulf = lastCandle.close > lastCandle.open
+    && prevCandle.close < prevCandle.open
+    && lastCandle.close > prevCandle.open
+    && lastCandle.open < prevCandle.close;
+  // 도지: 몸통이 매우 작음
+  const isDoji = bodySize < totalSize * 0.1 && totalSize > 0;
+  const candleScore = isBullEngulf ? 4 : isHammer ? 3 : isDoji ? 2 : 0;
+
+  // ━━━ 히스토리 기반 가중치 적용 ━━━
+  const w = learnWeights.get();
+  const hasLearnedWeights = w.dataCount && w.dataCount >= 10;
+
+  // ━━━ 점수 계산 (변별력 강화) ━━━
   let rawScore = 0;
-  rawScore += depthScore * 22;    // 최대 66 (깊이 중요도 ↑)
-  rawScore += oiScore * 18;       // 최대 54 (OI 중요도 ↑)
-  rawScore += volScore * 15;      // 최대 45
-  rawScore += cvdScore * 12;      // 최대 36
-  rawScore += fundingScore * 8;   // 최대 16
-  rawScore += lsScore * 5;        // 최대 10
+
+  // 기본 6개 조건 (학습 가중치 적용)
+  rawScore += depthScore * w.depth;    // 0~66 (이상적 깊이 최고점)
+  rawScore += oiScore * w.oi;          // 0~54
+  rawScore += volScore * w.vol;        // 0~45
+  rawScore += cvdScore * w.cvd;        // 0~36
+  rawScore += fundingScore * w.funding;// 0~16
+  rawScore += lsScore * w.ls;          // 0~10
+
+  // 추가 지표 (변별력 핵심)
+  rawScore += rsiScore * 14;           // 0~56 (RSI 위치)
+  rawScore += bbScore * 12;            // 0~48 (BB 위치)
+  rawScore += vwapScore * 10;          // 0~30 (VWAP)
+  rawScore += candleScore * 8;         // 0~32 (캔들 패턴)
+
+  // ━━━ 보너스 시스템 ━━━
+  // 최고 조건 3개 이상 ★★★ 동시
+  const starCount = [depthScore===3, oiScore>=2, volScore>=2, cvdScore>=2, rsiScore>=3, bbScore>=3]
+    .filter(Boolean).length;
+  if (starCount >= 4) { rawScore += 20; } // 슈퍼 보너스
+  else if (starCount >= 3) { rawScore += 10; }
+
+  // 캔들 패턴 + CVD 전환 동시
+  if (candleScore >= 3 && cvdTrend.turning) rawScore += 15;
+
+  // RSI + BB 하단 동시
+  if (rsiScore >= 3 && bbScore >= 3) rawScore += 10;
+
   // 상승 추세 강도 보너스
   rawScore += Math.min(15, upCount * 2);
-  rawScore = Math.min(99, rawScore);
 
-  // EMA 적용
-  const score = Math.round(pbState.updateEma(sym, rawScore));
+  // ━━━ 페널티 시스템 ━━━
+  if (!volShrinking) rawScore -= 15;     // 거래량 안 줄면 감점
+  if (bigRedCount >= 2) rawScore -= 10;  // 큰 음봉 2개
+  if (rsi > 65) rawScore -= 20;          // RSI 고점 = 아직 하락 가능
+  if (bbPos > 0.7) rawScore -= 15;       // BB 상단 근처
+  if (lsTrend.dropping && lsTrend.speed > 3) rawScore -= 10; // 숏 급증
 
-  // 충족 조건 수
+  rawScore = Math.min(99, Math.max(0, rawScore));
+
+  // ━━━ EMA 제거 → 직접 점수 사용 (변별력 위해) ━━━
+  // EMA는 점수를 평준화시키므로 제거하고 rawScore 직접 사용
+  const score = rawScore;
+
+  // 충족 조건 수 (기본6 + 추가4)
   const condsMet = [depthOk, oiMaintained, volShrinking, cvdBottoming, fundingMaintained, noShortPanic]
     .filter(Boolean).length;
+  const extCondsMet = [rsiScore>=2, bbScore>=2, vwapScore>=1, candleScore>=2]
+    .filter(Boolean).length;
 
-  // ━━━ 엄격한 판정 ━━━
+  // ━━━ 판정 (점수 기반으로 강화) ━━━
   let verdict;
-  if (condsMet >= 5 && score >= 65) verdict = '🎯 진입';        // 강화: 60→65
-  else if (condsMet >= 4 && score >= 52) verdict = '👀 대기';   // 강화: 45→52
-  else return null;  // 관망 제외 (목록에서 아예 제거)
+  if (score >= 80 && condsMet >= 5) verdict = '🎯 강진입';
+  else if (score >= 65 && condsMet >= 4) verdict = '🎯 진입';
+  else if (score >= 50 && condsMet >= 4) verdict = '👀 대기';
+  else if (score >= 38 && condsMet >= 3) verdict = '⏸ 관망';
+  else return null;
 
   return {
-    score, rawScore, condsMet, verdict,
+    score, rawScore, condsMet, extCondsMet, verdict,
     pullbackDepth, recentHigh, currentPrice,
-    depthOk, depthScore,
-    oiMaintained, oiScore,
+    depthOk, depthScore, oiMaintained, oiScore,
     volShrinking, volScore, upVol, downVol,
-    cvdBottoming, cvdScore,
-    fundingMaintained, fundingScore,
+    cvdBottoming, cvdScore, fundingMaintained, fundingScore,
     noShortPanic, lsScore,
-    upTrend,
+    // 추가 지표
+    rsi, rsiScore, bbPos, bbScore, bbMa, vwapScore, vwap,
+    candleScore, isHammer, isBullEngulf, isDoji,
+    starCount, extCondsMet,
+    hasLearnedWeights,
+    upCount,
   };
 }
 
@@ -2171,38 +2345,68 @@ function renderPullback() {
 
   document.getElementById('pbBody').innerHTML = pbData.map((d, i) => {
     const pb = d.pb;
-    const depthColor = pb.pullbackDepth >= 8 && pb.pullbackDepth <= 15
-      ? 'var(--green)' : pb.pullbackDepth > 20
-      ? 'var(--red)' : 'var(--yellow)';
-    const verdictColor = pb.verdict === '🎯 진입'
-      ? 'var(--green)' : pb.verdict === '👀 대기'
-      ? 'var(--yellow)' : 'var(--text-dim)';
+    const depthColor = pb.pullbackDepth >= 8 && pb.pullbackDepth <= 14
+      ? 'var(--green)' : pb.pullbackDepth > 16 ? 'var(--red)' : 'var(--yellow)';
 
-    return `<tr style="${pb.verdict === '🎯 진입' ? 'background:rgba(0,221,255,.04)' : ''}">
+    // 판정별 색상/배경
+    const vColor = pb.verdict==='🎯 강진입'?'var(--green)':pb.verdict==='🎯 진입'?'#00ddff':pb.verdict==='👀 대기'?'var(--yellow)':'var(--text-dim)';
+    const vBg = pb.verdict==='🎯 강진입'?'rgba(0,255,136,.06)':pb.verdict==='🎯 진입'?'rgba(0,221,255,.04)':pb.verdict==='👀 대기'?'rgba(255,204,0,.03)':'';
+
+    // 점수 색상 (변별력)
+    const scoreColor = pb.score>=80?'var(--green)':pb.score>=65?'#00ddff':pb.score>=50?'var(--yellow)':'var(--text-dim)';
+
+    // RSI 색상
+    const rsiColor = pb.rsi<=45?'var(--green)':pb.rsi<=55?'var(--yellow)':pb.rsi>=65?'var(--red)':'var(--text-dim)';
+
+    // BB 위치 색상
+    const bbColor = pb.bbPos<=0.25?'var(--green)':pb.bbPos<=0.5?'var(--yellow)':pb.bbPos>=0.75?'var(--red)':'var(--text-dim)';
+
+    // 캔들 패턴 이모지
+    const candleEmoji = pb.isBullEngulf?'🕯엔걸핑':pb.isHammer?'🔨망치':pb.isDoji?'➕도지':'--';
+
+    // 별점 (변별력 핵심)
+    const stars = '⭐'.repeat(Math.min(pb.starCount||0, 5));
+
+    return `<tr style="background:${vBg}">
       <td class="dim mono">${i+1}</td>
       <td>
         <div class="sym">${d.symbol}</div>
-        ${d.sector ? `<span style="font-size:9px;color:var(--text-dim)">${d.sector}</span>` : ''}
+        ${d.sector?`<span style="font-size:9px;color:var(--text-dim)">${d.sector}</span>`:''}
+        ${pb.hasLearnedWeights?'<span style="font-size:8px;color:var(--blue);margin-left:2px">AI</span>':''}
       </td>
       <td>
-        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:#00ddff">${pb.score}</div>
-        <div style="width:40px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:3px">
-          <div style="height:100%;width:${pb.score}%;background:#00ddff;border-radius:2px"></div>
+        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;color:${scoreColor}">${pb.score}</div>
+        <div style="width:50px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:3px">
+          <div style="height:100%;width:${pb.score}%;background:${scoreColor};border-radius:2px;transition:width .5s"></div>
         </div>
+        <div style="font-size:9px;color:var(--text-dim);margin-top:2px">${stars||'☆☆☆'}</div>
       </td>
       <td style="text-align:center">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${depthColor}">-${pb.pullbackDepth.toFixed(1)}%</div>
-        <div style="font-size:9px;color:var(--text-dim)">고점 $${pb.recentHigh < 1 ? pb.recentHigh.toFixed(5) : pb.recentHigh.toLocaleString()}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${depthColor}">-${pb.pullbackDepth.toFixed(1)}%</div>
+        <div style="font-size:8px;color:var(--text-dim)">이상적:8~14%</div>
+      </td>
+      <td style="text-align:center">
+        <div style="font-size:11px;font-weight:700;color:${rsiColor}">RSI ${pb.rsi.toFixed(0)}</div>
+        <div style="font-size:8px;color:var(--text-dim)">${pb.rsi<=45?'✅과매도':pb.rsi>=65?'❌과매수':'중립'}</div>
+      </td>
+      <td style="text-align:center">
+        <div style="font-size:11px;font-weight:700;color:${bbColor}">${(pb.bbPos*100).toFixed(0)}%</div>
+        <div style="font-size:8px;color:var(--text-dim)">${pb.bbPos<=0.25?'✅BB하단':pb.bbPos>=0.75?'❌BB상단':'BB중간'}</div>
+      </td>
+      <td style="text-align:center">
+        <div style="font-size:10px;color:${pb.vwapScore>=2?'var(--green)':'var(--text-dim)'}">${pb.vwapScore>=2?'✅':'❌'} VWAP</div>
+        <div style="font-size:8px;color:var(--text-dim)">${pb.vwapScore>=2?'저평가':'고평가'}</div>
+      </td>
+      <td style="text-align:center">
+        <div style="font-size:10px">${pb.candleScore>=3?candleEmoji:pb.candleScore>=2?candleEmoji:'--'}</div>
+        <div style="font-size:8px;color:${pb.candleScore>=2?'var(--green)':'var(--text-dim)'}">${pb.candleScore>=3?'★★★':pb.candleScore>=2?'★★':pb.candleScore>=1?'★':''}</div>
       </td>
       ${condCell2(pb.oiMaintained, pb.oiScore, 3)}
       ${condCell2(pb.volShrinking, pb.volScore, 3)}
-      ${condCell2(pb.cvdBottoming, pb.cvdScore, 3)}
-      ${condCell2(pb.fundingMaintained, pb.fundingScore, 2)}
-      ${condCell2(pb.noShortPanic, pb.lsScore, 2)}
-      <td class="mono">${fmtV(d.volume24h)}</td>
+      <td class="mono hide-m">${fmtV(d.volume24h)}</td>
       <td>
-        <span style="font-size:11px;font-weight:700;color:${verdictColor}">${pb.verdict}</span>
-        <div style="font-size:9px;color:var(--text-dim);margin-top:2px">${pb.condsMet}/6 조건</div>
+        <span style="font-size:11px;font-weight:700;color:${vColor}">${pb.verdict}</span>
+        <div style="font-size:8px;color:var(--text-dim);margin-top:2px">${pb.condsMet}/6 기본 · ${pb.extCondsMet||0}/4 추가</div>
       </td>
     </tr>`;
   }).join('');
