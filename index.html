@@ -213,6 +213,36 @@ td{padding:9px 12px;vertical-align:middle;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
 @media(max-width:700px){.hide-m{display:none;}}
+
+/* ── 섹터 바 ── */
+.sector-bar{
+  display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px;
+  scrollbar-width:none;
+}
+.sector-bar::-webkit-scrollbar{display:none;}
+.sector-item{
+  flex-shrink:0;background:var(--bg2);border:1px solid var(--border);
+  border-radius:10px;padding:8px 12px;cursor:pointer;transition:all .2s;
+  min-width:100px;
+}
+.sector-item:hover{border-color:var(--border2);}
+.sector-item.hot{border-color:rgba(255,119,0,.4);background:rgba(255,119,0,.05);}
+.sector-item.rising{border-color:rgba(0,255,136,.3);background:rgba(0,255,136,.04);}
+.sector-item.falling{border-color:rgba(255,51,85,.2);}
+.sector-item.active{border-color:var(--yellow);background:rgba(255,204,0,.05);}
+.sector-emoji{font-size:16px;margin-bottom:3px;}
+.sector-name{font-size:9px;color:var(--text-dim);letter-spacing:.8px;text-transform:uppercase;}
+.sector-pct{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;margin:2px 0;}
+.sector-heat{height:3px;border-radius:2px;margin-top:4px;transition:width .5s;}
+.sector-leader{font-size:9px;color:var(--text-dim);margin-top:3px;}
+
+/* ── 스캐너 개선 ── */
+.grade-s{padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;background:linear-gradient(135deg,rgba(255,204,0,.2),rgba(255,119,0,.2));border:1px solid rgba(255,204,0,.5);color:var(--yellow);}
+.grade-a{padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.35);color:var(--green);}
+.grade-b{padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;background:rgba(0,170,255,.1);border:1px solid rgba(0,170,255,.3);color:var(--blue);}
+.grade-c{padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;background:var(--border);border:1px solid var(--border2);color:var(--text-dim);}
+.sector-badge{font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,204,0,.1);border:1px solid rgba(255,204,0,.2);color:var(--yellow);font-family:'JetBrains Mono',monospace;}
+.rs-bar{width:36px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;display:inline-block;vertical-align:middle;}
 </style>
 </head>
 <body>
@@ -269,6 +299,11 @@ td{padding:9px 12px;vertical-align:middle;}
   <div class="scard"><div class="sl">🚨 숏스퀴즈</div><div class="sv o" id="sqCount">0</div></div>
   <div class="scard"><div class="sl">저장됨</div><div class="sv p" id="savedCount">0</div></div>
   <div class="scard"><div class="sl">체제</div><div class="sv" id="regime">--</div></div>
+</div>
+
+<!-- 섹터 바 (항상 표시) -->
+<div class="sector-bar" id="sectorBar">
+  <div style="display:flex;align-items:center;padding:8px 12px;font-size:10px;color:var(--text-dim);flex-shrink:0">섹터분석 로딩중...</div>
 </div>
 
 <!-- 탭 -->
@@ -330,7 +365,17 @@ td{padding:9px 12px;vertical-align:middle;}
     <div class="tbox-hdr"><div class="tbox-title">■ 전체 스캔</div><div class="tbox-sub" id="scanInfo">--</div></div>
     <div style="overflow-x:auto">
       <table>
-        <thead><tr><th>#</th><th>SYMBOL</th><th>방향</th><th onclick="sortBy('score')">점수▼</th><th>가격</th><th onclick="sortBy('change24h')">24h%</th><th class="hide-m">펀딩</th><th class="hide-m">OI1h</th><th class="hide-m">OI4h</th><th>거래량</th><th class="hide-m">레이어</th><th>시그널</th></tr></thead>
+        <thead><tr>
+  <th>#</th><th>SYMBOL</th><th>등급</th>
+  <th onclick="sortBy('score')">점수▼</th>
+  <th>RS</th>
+  <th>가격</th><th onclick="sortBy('change24h')">24h%</th>
+  <th class="hide-m">펀딩</th>
+  <th class="hide-m">OI4h</th>
+  <th>거래량</th>
+  <th class="hide-m">섹터</th>
+  <th>시그널</th>
+</tr></thead>
         <tbody id="scanBody"><tr><td colspan="12"><div class="loading"><div class="spin"></div><div class="loading-txt">초기화 중...</div></div></td></tr></tbody>
       </table>
     </div>
@@ -698,6 +743,53 @@ const cache = {
 };
 
 // ════════════════════════════
+//  섹터 정의
+// ════════════════════════════
+const SECTORS = {
+  '🤖AI':    ['FET','RENDER','GRT','TAO','WLD','AGIX','OCEAN','NMR','ARKM'],
+  '🔥Meme':  ['DOGE','PEPE','WIF','BONK','FLOKI','SHIB','BOME','MEW'],
+  '⚡L1':    ['SOL','AVAX','NEAR','APT','SUI','SEI','INJ','TIA','ATOM'],
+  '🌐DeFi':  ['UNI','CRV','AAVE','SUSHI','JUP','ORCA','RAY','CAKE','GMX'],
+  '🏗L2':    ['ARB','OP','MATIC','STRK','BLUR','IMX','MANTA'],
+  '🎮Game':  ['AXS','SAND','GALA','ENJ','BEAM','MAGIC','YGG'],
+  '🔵BTC계': ['BTC','ETH','BNB','LTC','BCH','ETC'],
+  '🧬RWA':   ['BIO','ONDO','POLYX','CFG','TRU','CPOOL'],
+  '📡Oracle':['LINK','BAND','API3','DIA','TRB'],
+};
+
+// 섹터별 성과 캐시
+const sectorCache = {
+  data: {},      // { 'AI': { avg24h: 5.2, coins: [...], leader: 'FET' } }
+  activeSector: null,  // 클릭한 섹터 필터
+};
+
+// 시장 체제 상태
+const marketRegime = {
+  type: 'neutral',  // bull / bear / neutral / volatile
+  bullPct: 50,
+  avgChange: 0,
+  update(coins) {
+    const changes = coins.map(c => c.change24h);
+    this.avgChange = changes.reduce((a,b)=>a+b,0) / changes.length;
+    this.bullPct = changes.filter(c=>c>0).length / changes.length * 100;
+    if (this.bullPct > 65 && this.avgChange > 3) this.type = 'bull';
+    else if (this.bullPct < 35 && this.avgChange < -3) this.type = 'bear';
+    else if (Math.abs(this.avgChange) < 1) this.type = 'neutral';
+    else this.type = 'volatile';
+  },
+  // 체제에 따른 가중치
+  weights() {
+    switch(this.type) {
+      case 'bull':     return { momentum:1.3, structure:1.0, timing:1.2, rs:1.3 };
+      case 'bear':     return { momentum:0.7, structure:1.3, timing:0.8, rs:0.9 };
+      case 'neutral':  return { momentum:1.0, structure:1.2, timing:1.5, rs:1.0 };
+      case 'volatile': return { momentum:0.9, structure:1.4, timing:1.1, rs:1.1 };
+      default:         return { momentum:1.0, structure:1.0, timing:1.0, rs:1.0 };
+    }
+  }
+};
+
+// ════════════════════════════
 //  DB
 // ════════════════════════════
 const DB_KEY='scanner_v31';
@@ -860,21 +952,106 @@ async function getLSRatio(sym) {
 // ════════════════════════════
 //  SCORE ENGINE
 // ════════════════════════════
-function calcScore(item){
-  let sc=0;const sigs=[];
-  sc+=Math.min(30,item.volRatio*10);if(item.volRatio>2)sigs.push('🔥');
-  sc+=Math.min(20,Math.abs(item.oi1h)*.8);if(Math.abs(item.oi1h)>15)sigs.push('🧲');
-  sc+=Math.min(25,Math.abs(item.oi4h)*.5);if(item.oi4h>50)sigs.push('🚀');
-  const fa=Math.abs(item.funding);
-  if(fa>0.1){sc+=Math.min(15,fa*50);sigs.push('⚡');}
-  const ca=Math.abs(item.change24h);
-  if(ca>5&&ca<30){sc+=Math.min(10,ca*.5);if(ca>10)sigs.push('🌊');}
-  if(item.volRatio>1.5&&Math.abs(item.oi4h)>30){sc+=10;sigs.push('💎');}
-  if(item.volRatio>3&&item.change24h<5)sigs.push('🎯');
-  if(item.funding<-0.3&&item.oi1h>10){sc+=8;sigs.push('💀');}
-  if(sc>60&&item.change24h>0)sigs.push('🚀');
-  const dir=item.funding>0.2&&item.change24h>15?'short':'long';
-  return{score:Math.round(Math.min(99,sc)),sigs:[...new Set(sigs)],dir};
+function getSector(symbol) {
+  for (const [sector, coins] of Object.entries(SECTORS)) {
+    if (coins.includes(symbol)) return sector;
+  }
+  return null;
+}
+
+function calcRS(item, allItems) {
+  // RS = 내 코인 24h% / 전체 평균 24h%
+  const avgChange = allItems.reduce((s,d)=>s+d.change24h,0) / allItems.length;
+  if (Math.abs(avgChange) < 0.1) return 1;
+  return item.change24h / Math.abs(avgChange);
+}
+
+function calcScore(item, allItems=[]) {
+  let sc = 0;
+  const sigs = [];
+  const w = marketRegime.weights();
+
+  // ━━━ [A] 모멘텀 (최대 25점) ━━━
+  let momentumSc = 0;
+  if (item.volRatio > 3) { momentumSc += 15; sigs.push('🔥'); }
+  else if (item.volRatio > 1.5) { momentumSc += 10; sigs.push('🔥'); }
+  else if (item.volRatio > 0.5) momentumSc += 5;
+
+  const ca = Math.abs(item.change24h);
+  if (ca > 15 && ca < 40) { momentumSc += 10; sigs.push('🌊'); }
+  else if (ca > 5 && ca < 15) momentumSc += 5;
+  sc += Math.min(25, momentumSc * w.momentum);
+
+  // ━━━ [B] 구조 점수 (최대 30점) OI+펀딩 복합 ━━━
+  let structSc = 0;
+  const oiTrend = preState.getOITrend(item.fullSym || item.symbol+'USDT');
+  if (oiTrend.consistent) { structSc += 15; sigs.push('🧲'); }
+  else if (item.oi4h > 30) { structSc += 10; sigs.push('🧲'); }
+  else if (item.oi4h > 10) structSc += 5;
+
+  if (item.oi1h > 10) structSc += 5;
+
+  const fa = Math.abs(item.funding);
+  if (fa > 0.3) { structSc += 10; sigs.push('⚡'); }
+  else if (fa > 0.1) { structSc += 6; sigs.push('⚡'); }
+  else if (fa > 0.05) structSc += 3;
+  sc += Math.min(30, structSc * w.structure);
+
+  // ━━━ [C] RS 상대강도 (최대 20점) ━━━
+  let rsSc = 0;
+  const rs = allItems.length > 0 ? calcRS(item, allItems) : 1;
+  item._rs = rs; // 나중에 표시용
+  if (rs > 2.5) { rsSc += 20; sigs.push('🚀'); }
+  else if (rs > 1.5) { rsSc += 14; sigs.push('🚀'); }
+  else if (rs > 1.0) rsSc += 8;
+  else if (rs < 0) rsSc -= 5; // 시장 역행
+  sc += Math.min(20, rsSc * w.rs);
+
+  // ━━━ [D] 타이밍 점수 (최대 20점) ━━━
+  // 아직 안 오른 코인에 가산점
+  let timingSc = 0;
+  const notYetMoved = ca < 5 && item.oi4h > 10 && item.funding < -0.05;
+  const earlyMover = ca > 3 && ca < 12 && item.oi4h > 20;
+  const lateMover = ca > 20;
+
+  if (notYetMoved) { timingSc += 20; sigs.push('🎯'); }
+  else if (earlyMover) { timingSc += 12; sigs.push('💎'); }
+  else if (lateMover) { timingSc -= 5; } // 늦은 진입 패널티
+  sc += Math.min(20, timingSc * w.timing);
+
+  // ━━━ [E] 섹터 보너스 (최대 10점) ━━━
+  const sector = getSector(item.symbol);
+  if (sector && sectorCache.data[sector]) {
+    const secData = sectorCache.data[sector];
+    if (secData.avg24h > 5) sc += 10;   // 핫한 섹터
+    else if (secData.avg24h > 2) sc += 5;
+  }
+
+  // ━━━ 숏스퀴즈 보너스 ━━━
+  if (item.funding < -0.3 && item.oi1h > 10) { sc += 8; sigs.push('💀'); }
+
+  // ━━━ 브레이크아웃 ━━━
+  if (item.volRatio > 1.5 && item.oi4h > 30 && ca < 8) sigs.push('💎');
+
+  // ━━━ 등급 판정 ━━━
+  const finalSc = Math.round(Math.min(99, Math.max(0, sc)));
+  let grade;
+  if (finalSc >= 75) grade = 'S';
+  else if (finalSc >= 55) grade = 'A';
+  else if (finalSc >= 35) grade = 'B';
+  else grade = 'C';
+
+  // 방향
+  const dir = item.funding > 0.2 && item.change24h > 15 ? 'short' : 'long';
+
+  return {
+    score: finalSc,
+    grade,
+    sigs: [...new Set(sigs)],
+    dir,
+    rs: item._rs || 1,
+    sector
+  };
 }
 
 function getLayer(item,score){
@@ -1002,19 +1179,29 @@ async function fetchAll(){
 
   setProgress(60,'④ 데이터 처리 중...',4);
 
-  allData=top100.map(t=>{
+  // 1차: 기본 데이터만 수집
+  const rawItems = top100.map(t=>{
     const sym=t.symbol,price=parseFloat(t.lastPrice),change24h=parseFloat(t.priceChangePercent);
     const vol=parseFloat(t.quoteVolume),prevV=vol/(1+change24h/100);
     const volRatio=prevV>0?vol/prevV-1:0;
     const funding=fMap[sym]||0;
-    // 랜덤 완전 제거: 실데이터 → 캐시 → 0 순서로 사용
     const cachedOI = cache.getOI(sym);
     const oi1h = oiMap[sym]?.oi1h ?? cachedOI?.oi1h ?? 0;
     const oi4h = oiMap[sym]?.oi4h ?? cachedOI?.oi4h ?? 0;
-    const item={symbol:sym.replace('USDT',''),fullSym:sym,price,change24h,volume24h:vol,volRatio,funding,oi1h,oi4h};
-    const{score,sigs,dir}=calcScore(item);
-    const layer=getLayer(item,score);
-    return{...item,score,sigs,dir,layer};
+    return {symbol:sym.replace('USDT',''),fullSym:sym,price,change24h,volume24h:vol,volRatio,funding,oi1h,oi4h};
+  });
+
+  // 시장 체제 업데이트
+  marketRegime.update(rawItems);
+
+  // 섹터 성과 계산
+  calcSectorPerformance(rawItems);
+
+  // 2차: RS + 섹터 보너스 포함한 최종 점수 계산
+  allData = rawItems.map(item=>{
+    const {score,grade,sigs,dir,rs,sector} = calcScore(item, rawItems);
+    const layer = getLayer(item, score);
+    return {...item, score, grade, sigs, dir, layer, rs, sector};
   }).sort((a,b)=>b.score-a.score);
 
   // 요약
@@ -1030,8 +1217,8 @@ async function fetchAll(){
   const avgF=allData.reduce((s,d)=>s+d.funding,0)/allData.length;
   document.getElementById('avgFunding').textContent=avgF.toFixed(4)+'%';
   document.getElementById('avgFunding').className='sv '+(avgF<0?'g':'r');
-  const bull=allData.filter(d=>d.change24h>0).length;
-  document.getElementById('regime').textContent=bull>allData.length*.6?'🟢강세':bull<allData.length*.4?'🔴약세':'🟡혼조';
+  const regimeMap = { bull:'🟢강세', bear:'🔴약세', neutral:'🟡횡보', volatile:'🟠혼조' };
+  document.getElementById('regime').textContent = regimeMap[marketRegime.type] || '🟡횡보';
   const cands=allData.filter(d=>d.layer>=2);
   document.getElementById('candCount').textContent=cands.length;
   document.getElementById('tc-g').textContent=cands.length;
@@ -1121,24 +1308,107 @@ function condCell(ok){return ok?`<span style="color:var(--green);font-size:14px"
 // ════════════════════════════
 //  RENDER
 // ════════════════════════════
+// ════════════════════════════
+//  섹터 성과 계산 + 렌더링
+// ════════════════════════════
+function calcSectorPerformance(coins) {
+  sectorCache.data = {};
+  for (const [sector, members] of Object.entries(SECTORS)) {
+    const matched = coins.filter(c => members.includes(c.symbol));
+    if (!matched.length) continue;
+    const avg24h = matched.reduce((s,c)=>s+c.change24h,0) / matched.length;
+    const leader = matched.sort((a,b)=>b.change24h-a.change24h)[0];
+    const totalVol = matched.reduce((s,c)=>s+c.volume24h,0);
+    sectorCache.data[sector] = { avg24h, leader, totalVol, count: matched.length, coins: matched };
+  }
+}
+
+function renderSectorBar() {
+  if (!Object.keys(sectorCache.data).length) return;
+
+  const sectors = Object.entries(sectorCache.data)
+    .sort((a,b) => b[1].avg24h - a[1].avg24h);
+
+  const maxAbs = Math.max(...sectors.map(([,d])=>Math.abs(d.avg24h)), 1);
+
+  const html = sectors.map(([name, data]) => {
+    const pct = data.avg24h;
+    const isHot = pct > 5;
+    const isRising = pct > 1;
+    const isFalling = pct < -1;
+    const isActive = sectorCache.activeSector === name;
+    const barW = Math.min(100, Math.abs(pct)/maxAbs*100);
+    const barColor = pct >= 0 ? 'var(--green)' : 'var(--red)';
+    const cls = isActive?'active':isHot?'hot':isRising?'rising':isFalling?'falling':'';
+
+    return `<div class="sector-item ${cls}" onclick="filterBySector('${name}')" title="${data.coins.map(c=>c.symbol).join(', ')}">
+      <div class="sector-emoji">${name[0]}</div>
+      <div class="sector-name">${name.replace(/[^\w\s]/g,'').trim()||name}</div>
+      <div class="sector-pct" style="color:${pct>=0?'var(--green)':'var(--red)'}">${pct>=0?'+':''}${pct.toFixed(1)}%</div>
+      <div class="sector-heat" style="width:${barW}%;background:${barColor}"></div>
+      <div class="sector-leader">${data.leader?data.leader.symbol+' '+fmt(data.leader.change24h)+'%':''}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('sectorBar').innerHTML = html;
+}
+
+function filterBySector(sector) {
+  if (sectorCache.activeSector === sector) {
+    sectorCache.activeSector = null;
+  } else {
+    sectorCache.activeSector = sector;
+  }
+  renderSectorBar();
+  renderScanner();
+}
+
 function renderScanner(){
   let d=[...allData];
   if(curFilter!=='all')d=d.filter(x=>x.dir===curFilter);
   d=d.filter(x=>x.score>=curMinScore);
   d.sort((a,b)=>{const av=a[curSort.key],bv=b[curSort.key];return curSort.dir*(av<bv?-1:av>bv?1:0);});
-  if(!d.length){document.getElementById('scanBody').innerHTML=`<tr><td colspan="12"><div class="empty">해당 조건 없음</div></td></tr>`;return;}
-  document.getElementById('scanBody').innerHTML=d.map((x,i)=>`<tr class="${x.layer>=2?'hl':''}">
-    <td class="dim mono">${i+1}</td><td class="sym">${x.symbol}</td><td>${dirHtml(x.dir)}</td>
-    <td>${scoreHtml(x.score)}</td>
-    <td class="mono">${x.price<1?x.price.toFixed(5):x.price.toLocaleString()}</td>
-    <td class="mono ${x.change24h>=0?'pos':'neg'}">${fmt(x.change24h)}%</td>
-    <td class="mono hide-m ${x.funding<0?'pos':'neg'}">${x.funding.toFixed(4)}%</td>
-    <td class="mono hide-m ${x.oi1h>=0?'pos':'neg'}">${fmt(x.oi1h)}%</td>
-    <td class="mono hide-m ${x.oi4h>=0?'pos':'neg'}">${fmt(x.oi4h)}%</td>
-    <td class="mono">${fmtV(x.volume24h)}</td>
-    <td class="hide-m">${x.layer>=1?`<span class="ly ly${Math.min(x.layer,3)}">L${x.layer}</span>`:''}</td>
-    <td><div class="sigs">${x.sigs.map(s=>`<span style="font-size:12px">${s}</span>`).join('')}</div></td>
-  </tr>`).join('');
+  // 섹터 필터 적용
+  if (sectorCache.activeSector) {
+    const members = SECTORS[sectorCache.activeSector] || [];
+    d = d.filter(x => members.includes(x.symbol));
+  }
+
+  if(!d.length){document.getElementById('scanBody').innerHTML=`<tr><td colspan="12"><div class="empty">${sectorCache.activeSector?sectorCache.activeSector+' 섹터 코인 없음':'해당 조건 없음'}</div></td></tr>`;return;}
+
+  document.getElementById('scanBody').innerHTML=d.map((x,i)=>{
+    const gradeEl = x.grade==='S'?`<span class="grade-s">S급</span>`:
+                    x.grade==='A'?`<span class="grade-a">A급</span>`:
+                    x.grade==='B'?`<span class="grade-b">B급</span>`:
+                    `<span class="grade-c">C급</span>`;
+    const rs = x.rs || 1;
+    const rsColor = rs >= 1.5?'var(--green)':rs >= 1.0?'var(--text)':rs >= 0?'var(--yellow)':'var(--red)';
+    const rsPct = Math.min(100, Math.abs(rs-1)*50+50);
+    const sectorBadge = x.sector ? `<span class="sector-badge">${x.sector[0]}</span>` : '';
+
+    return `<tr class="${x.layer>=2?'hl':''}" style="${x.grade==='S'?'background:rgba(255,204,0,.03)':''}">
+      <td class="dim mono">${i+1}</td>
+      <td>
+        <div class="sym">${x.symbol}</div>
+        ${sectorBadge}
+      </td>
+      <td>${gradeEl}</td>
+      <td>${scoreHtml(x.score)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:4px">
+          <div class="rs-bar"><div style="height:100%;width:${rsPct}%;background:${rsColor};border-radius:2px"></div></div>
+          <span class="mono" style="font-size:9px;color:${rsColor}">${rs.toFixed(1)}x</span>
+        </div>
+      </td>
+      <td class="mono">${x.price<1?x.price.toFixed(5):x.price.toLocaleString()}</td>
+      <td class="mono ${x.change24h>=0?'pos':'neg'}">${fmt(x.change24h)}%</td>
+      <td class="mono hide-m ${x.funding<0?'pos':'neg'}">${x.funding.toFixed(4)}%</td>
+      <td class="mono hide-m ${x.oi4h>=0?'pos':'neg'}">${fmt(x.oi4h)}%</td>
+      <td class="mono">${fmtV(x.volume24h)}</td>
+      <td class="hide-m">${x.sector?`<span style="font-size:10px;color:var(--text-dim)">${x.sector}</span>`:''}</td>
+      <td><div class="sigs">${x.sigs.map(s=>`<span style="font-size:12px">${s}</span>`).join('')}</div></td>
+    </tr>`;
+  }).join('');
 }
 
 function renderGunpowder(){
