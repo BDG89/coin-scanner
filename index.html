@@ -312,6 +312,7 @@ td{padding:9px 12px;vertical-align:middle;}
   <div class="tab" onclick="sw('gunpowder')">🔥 화약고 <span class="tbadge" id="tc-g">0</span></div>
   <div class="tab sq-tab" onclick="sw('squeeze')">⚡ 숏스퀴즈 <span class="tbadge hot" id="tc-sq">0</span></div>
   <div class="tab" onclick="sw('presqueeze')" style="color:var(--purple)">⏳ 예열중 <span class="tbadge" id="tc-pre" style="background:var(--purple-dim);border-color:rgba(187,102,255,.3);color:var(--purple)">0</span></div>
+  <div class="tab" onclick="sw('pullback')" style="color:#00ddff">⬇️ 눌림목 <span class="tbadge" id="tc-pb" style="background:rgba(0,221,255,.08);border-color:rgba(0,221,255,.3);color:#00ddff">0</span></div>
   <div class="tab" onclick="sw('history')">📦 히스토리 <span class="tbadge" id="tc-h">0</span></div>
   <div class="tab" onclick="sw('pattern')">🔬 패턴</div>
   <div class="tab" onclick="sw('whale')">🐋 고래</div>
@@ -549,6 +550,89 @@ td{padding:9px 12px;vertical-align:middle;}
   </div>
   <div class="tbox"><div class="tbox-hdr"><div class="tbox-title">⚡ 롱/숏 비율</div></div>
     <div style="overflow-x:auto"><table><thead><tr><th>SYMBOL</th><th>롱%</th><th>숏%</th><th>OI</th><th>청산위험</th><th>방향</th></tr></thead><tbody id="lsBody"><tr><td colspan="6"><div class="loading"><div class="spin"></div></div></td></tr></tbody></table></div>
+  </div>
+</div>
+
+<!-- 눌림목 -->
+<div class="tab-panel" id="panel-pullback">
+
+  <!-- 설명 배너 -->
+  <div style="background:linear-gradient(135deg,rgba(0,221,255,.06),rgba(0,170,255,.03));border:1px solid rgba(0,221,255,.25);border-radius:12px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <div style="font-size:26px;animation:pulse2 2s infinite">⬇️</div>
+    <div style="flex:1">
+      <div style="font-family:'Orbitron',monospace;font-size:12px;color:#00ddff;margin-bottom:4px">눌림목 진입 타이밍 감지</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7">
+        상승 추세 유지 중 조정(눌림) 구간에서 <strong style="color:#00ddff">재진입 타이밍</strong>을 포착합니다<br>
+        고점 대비 <strong style="color:var(--yellow)">-5%~-20%</strong> 조정 + OI유지 + 거래량축소 + CVD바닥 = 눌림목 신호
+      </div>
+    </div>
+    <div style="text-align:center">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:#00ddff" id="pbBannerNum">0</div>
+      <div style="font-size:10px;color:var(--text-dim)">감지 코인</div>
+    </div>
+  </div>
+
+  <!-- 조건 설명 -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:14px">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:11px">
+      <div style="font-size:16px;margin-bottom:4px">📍</div>
+      <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">눌림 깊이</div>
+      <div style="font-size:11px;color:var(--text2)">고점 대비 <span style="color:var(--yellow);font-weight:700">-5%~-20%</span><br>추세 붕괴 아닌 조정</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:11px">
+      <div style="font-size:16px;margin-bottom:4px">📈</div>
+      <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">OI 유지</div>
+      <div style="font-size:11px;color:var(--text2)">눌림 중 OI <span style="color:var(--green);font-weight:700">급감 없음</span><br>세력 포지션 유지 중</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:11px">
+      <div style="font-size:16px;margin-bottom:4px">📉</div>
+      <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">거래량 축소</div>
+      <div style="font-size:11px;color:var(--text2)">눌림 중 거래량 <span style="color:var(--green);font-weight:700">감소</span><br>공포 매도 아님</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:11px">
+      <div style="font-size:16px;margin-bottom:4px">🌊</div>
+      <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">CVD 바닥</div>
+      <div style="font-size:11px;color:var(--text2)">CVD 하락 <span style="color:var(--orange);font-weight:700">멈춤/반등</span><br>매도세 소진 중</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:11px">
+      <div style="font-size:16px;margin-bottom:4px">⚡</div>
+      <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">펀딩 유지</div>
+      <div style="font-size:11px;color:var(--text2)">상승 전 방향 <span style="color:var(--green);font-weight:700">유지</span><br>시장 방향성 안 바뀜</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:11px">
+      <div style="font-size:16px;margin-bottom:4px">📊</div>
+      <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">OI 비율</div>
+      <div style="font-size:11px;color:var(--text2)">숏 비율 <span style="color:var(--green);font-weight:700">급증 없음</span><br>공포 숏 아님</div>
+    </div>
+  </div>
+
+  <!-- 눌림목 테이블 -->
+  <div class="tbox">
+    <div class="tbox-hdr">
+      <div class="tbox-title" style="color:#00ddff">⬇️ 눌림목 진입 후보</div>
+      <div class="tbox-sub">🎯진입 = 5개+ 조건 · 👀대기 = 3~4개 · ⏸관망 = 2개 이하</div>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>#</th><th>SYMBOL</th><th>눌림점수</th>
+          <th>📍눌림깊이</th><th>📈OI유지</th><th>📉거래량축소</th>
+          <th>🌊CVD바닥</th><th>⚡펀딩유지</th><th>📊숏비율</th>
+          <th>거래량</th><th>판정</th>
+        </tr></thead>
+        <tbody id="pbBody">
+          <tr><td colspan="11"><div class="loading"><div class="spin" style="border-top-color:#00ddff"></div><div class="loading-txt">눌림목 분석 중... (Kline 데이터 수집)</div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 주의사항 -->
+  <div style="padding:12px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;font-size:11px;color:var(--text-dim);line-height:1.8">
+    ⚠️ <strong style="color:var(--yellow)">주의사항</strong><br>
+    · 눌림목은 <strong>상승 추세가 전제</strong>되어야 유효합니다 (하락 추세의 반등은 데드캣 가능성)<br>
+    · 고점 대비 <strong>-20% 이상</strong> 눌림은 추세 붕괴 가능성이 있으므로 주의<br>
+    · 최근 20개 1h봉 기준 분석이며 데이터 수집에 시간이 걸릴 수 있습니다
   </div>
 </div>
 
@@ -1726,6 +1810,237 @@ function renderPattern(){
 //  PRE-SQUEEZE 예열 분석
 // ════════════════════════════
 // ════════════════════════════
+//  눌림목 전용 상태
+// ════════════════════════════
+const pbState = {
+  klineCache: {},     // { 'BTCUSDT': [...candles] }
+  pbScoreEma: {},     // EMA 점수
+  lastFetch: {},      // 마지막 fetch 시각
+
+  async getKlines(sym) {
+    const now = Date.now();
+    // 3분 캐시 (API 부하 방지)
+    if (this.klineCache[sym] && (now - (this.lastFetch[sym]||0)) < 180000) {
+      return this.klineCache[sym];
+    }
+    try {
+      const data = await apiFetch(`${BAPI}/fapi/v1/klines?symbol=${sym}&interval=1h&limit=24`);
+      this.klineCache[sym] = data;
+      this.lastFetch[sym] = now;
+      return data;
+    } catch {
+      return this.klineCache[sym] || null;
+    }
+  },
+
+  updateEma(sym, score) {
+    const prev = this.pbScoreEma[sym] || score;
+    this.pbScoreEma[sym] = prev * 0.65 + score * 0.35;
+    return this.pbScoreEma[sym];
+  }
+};
+
+// ════════════════════════════
+//  눌림목 분석 함수
+// ════════════════════════════
+async function analyzePullback(item) {
+  const sym = item.fullSym || item.symbol + 'USDT';
+  const klines = await pbState.getKlines(sym);
+  if (!klines || klines.length < 10) return null;
+
+  // Kline 파싱: [시간, 시가, 고가, 저가, 종가, 거래량, ...]
+  const candles = klines.map(k => ({
+    time: k[0],
+    open: parseFloat(k[1]),
+    high: parseFloat(k[2]),
+    low:  parseFloat(k[3]),
+    close: parseFloat(k[4]),
+    vol:  parseFloat(k[5]),
+  }));
+
+  const current = candles[candles.length - 1];
+  const prev12 = candles.slice(0, 12);  // 12~24시간 전 (상승 구간)
+  const recent6 = candles.slice(-6);    // 최근 6시간 (눌림 구간)
+
+  // ━━━ 1. 최근 고점 찾기 ━━━
+  const recentHigh = Math.max(...candles.slice(-20).map(c => c.high));
+  const currentPrice = current.close;
+  const pullbackDepth = (recentHigh - currentPrice) / recentHigh * 100;
+
+  // 눌림 깊이 조건: -5% ~ -25%
+  const depthOk = pullbackDepth >= 5 && pullbackDepth <= 25;
+  const depthScore = depthOk
+    ? (pullbackDepth >= 8 && pullbackDepth <= 15 ? 3  // 이상적 눌림
+     : pullbackDepth >= 5 && pullbackDepth <= 8  ? 2
+     : 1)
+    : 0;
+
+  // ━━━ 2. 상승 추세 확인 (고점 이전 방향) ━━━
+  const upTrend = prev12.length >= 6
+    ? prev12[prev12.length-1].close > prev12[0].close
+    : item.change24h > 5;
+
+  // ━━━ 3. OI 유지 확인 ━━━
+  // OI 4h가 -20% 미만 감소 없으면 유지로 판단
+  const oiMaintained = item.oi4h > -20;
+  const oiScore = item.oi4h > 0 ? 3 : item.oi4h > -10 ? 2 : item.oi4h > -20 ? 1 : 0;
+
+  // ━━━ 4. 거래량 축소 확인 ━━━
+  const upVol = prev12.reduce((s,c)=>s+c.vol,0) / Math.max(prev12.length,1);
+  const downVol = recent6.reduce((s,c)=>s+c.vol,0) / Math.max(recent6.length,1);
+  const volShrinking = downVol < upVol * 0.8; // 눌림 거래량 < 상승 거래량 80%
+  const volScore = downVol < upVol * 0.5 ? 3 : downVol < upVol * 0.7 ? 2 : volShrinking ? 1 : 0;
+
+  // ━━━ 5. CVD 바닥 확인 ━━━
+  const cvd = cache.getCVD(sym);
+  const cvdTrend = sqState.getCVDTrend(sym);
+  // CVD가 하락하다 멈추거나 반등 시작
+  const cvdBottoming = cvdTrend.turning || (cvd && cvd.emaRatio > -0.1 && cvd.emaRatio < 0.15);
+  const cvdScore = cvdTrend.turning ? 3 : cvdBottoming ? 2 : cvd && cvd.emaRatio > 0 ? 1 : 0;
+
+  // ━━━ 6. 펀딩 방향 유지 ━━━
+  // 상승 전 펀딩이 음수였다면 여전히 음수여야 함
+  const fundingMaintained = item.funding > -0.5 && item.funding < 0.3; // 극단적 변화 없음
+  const fundingScore = fundingMaintained && item.funding < 0.1 ? 2 : fundingMaintained ? 1 : 0;
+
+  // ━━━ 7. 숏 비율 급증 없음 ━━━
+  const lsCache = cache.getLS(sym);
+  const lsTrend = sqState.getLSTrend(sym);
+  const noShortPanic = !lsTrend.dropping || lsTrend.speed < 5; // 숏 급증 없음
+  const lsScore = noShortPanic && (lsCache ? lsCache.longPct > 40 : true) ? 2 : 1;
+
+  // ━━━ 상승 추세 전제 조건 ━━━
+  // 상승 추세 없으면 눌림목 아님 (데드캣 위험)
+  if (!upTrend || !depthOk) return null;
+
+  // ━━━ 점수 계산 ━━━
+  let rawScore = 0;
+  rawScore += depthScore * 20;    // 최대 60
+  rawScore += oiScore * 15;       // 최대 45
+  rawScore += volScore * 15;      // 최대 45
+  rawScore += cvdScore * 12;      // 최대 36
+  rawScore += fundingScore * 8;   // 최대 16
+  rawScore += lsScore * 5;        // 최대 10
+  rawScore = Math.min(99, rawScore);
+
+  // EMA 적용
+  const score = Math.round(pbState.updateEma(sym, rawScore));
+
+  // 충족 조건 수
+  const condsMet = [depthOk, oiMaintained, volShrinking, cvdBottoming, fundingMaintained, noShortPanic]
+    .filter(Boolean).length;
+
+  // 판정
+  let verdict;
+  if (condsMet >= 5 && score >= 60) verdict = '🎯 진입';
+  else if (condsMet >= 4 && score >= 45) verdict = '👀 대기';
+  else if (condsMet >= 3) verdict = '⏸ 관망';
+  else return null;
+
+  return {
+    score, rawScore, condsMet, verdict,
+    pullbackDepth, recentHigh, currentPrice,
+    depthOk, depthScore,
+    oiMaintained, oiScore,
+    volShrinking, volScore, upVol, downVol,
+    cvdBottoming, cvdScore,
+    fundingMaintained, fundingScore,
+    noShortPanic, lsScore,
+    upTrend,
+  };
+}
+
+// 눌림목 전체 분석 실행
+let pbData = [];
+async function fetchPullbackData() {
+  if (!allData.length) return;
+
+  // 상위 거래량 50개만 (API 부하)
+  const targets = allData.slice(0, 50);
+  document.getElementById('pbBody').innerHTML =
+    `<tr><td colspan="11"><div class="loading"><div class="spin" style="border-top-color:#00ddff"></div><div class="loading-txt">Kline 데이터 수집 중... (${targets.length}개 코인)</div></div></td></tr>`;
+
+  const results = await Promise.allSettled(
+    targets.map(async coin => {
+      const pb = await analyzePullback(coin);
+      if (!pb) return null;
+      return { ...coin, pb };
+    })
+  );
+
+  pbData = results
+    .filter(r => r.status === 'fulfilled' && r.value !== null)
+    .map(r => r.value)
+    .sort((a, b) => b.pb.score - a.pb.score);
+
+  document.getElementById('tc-pb').textContent = pbData.length;
+  document.getElementById('pbBannerNum').textContent = pbData.length;
+  renderPullback();
+
+  // 🎯 진입 신호 알림
+  pbData.filter(d => d.pb.verdict === '🎯 진입').slice(0, 2).forEach(d => {
+    showAlertItem(
+      `🎯 ${d.symbol} 눌림목 진입!`,
+      `고점 대비 -${d.pb.pullbackDepth.toFixed(1)}% · 점수 ${d.pb.score}`,
+      'hot'
+    );
+  });
+}
+
+function renderPullback() {
+  if (!pbData.length) {
+    document.getElementById('pbBody').innerHTML =
+      `<tr><td colspan="11"><div class="empty">눌림목 후보 없음<br><small>상승 추세 + 5~25% 조정 + 조건 3개 이상 필요</small></div></td></tr>`;
+    return;
+  }
+
+  const condCell2 = (ok, score, max) => {
+    const stars = '★'.repeat(score).replace(/★/g, `<span style="color:var(--yellow);font-size:10px">★</span>`);
+    return `<td style="text-align:center">${ok
+      ? `<span style="color:var(--green);font-size:13px">✓</span> ${stars}`
+      : `<span style="color:var(--text-dim);font-size:13px">✗</span>`}</td>`;
+  };
+
+  document.getElementById('pbBody').innerHTML = pbData.map((d, i) => {
+    const pb = d.pb;
+    const depthColor = pb.pullbackDepth >= 8 && pb.pullbackDepth <= 15
+      ? 'var(--green)' : pb.pullbackDepth > 20
+      ? 'var(--red)' : 'var(--yellow)';
+    const verdictColor = pb.verdict === '🎯 진입'
+      ? 'var(--green)' : pb.verdict === '👀 대기'
+      ? 'var(--yellow)' : 'var(--text-dim)';
+
+    return `<tr style="${pb.verdict === '🎯 진입' ? 'background:rgba(0,221,255,.04)' : ''}">
+      <td class="dim mono">${i+1}</td>
+      <td>
+        <div class="sym">${d.symbol}</div>
+        ${d.sector ? `<span style="font-size:9px;color:var(--text-dim)">${d.sector}</span>` : ''}
+      </td>
+      <td>
+        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:#00ddff">${pb.score}</div>
+        <div style="width:40px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:3px">
+          <div style="height:100%;width:${pb.score}%;background:#00ddff;border-radius:2px"></div>
+        </div>
+      </td>
+      <td style="text-align:center">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${depthColor}">-${pb.pullbackDepth.toFixed(1)}%</div>
+        <div style="font-size:9px;color:var(--text-dim)">고점 $${pb.recentHigh < 1 ? pb.recentHigh.toFixed(5) : pb.recentHigh.toLocaleString()}</div>
+      </td>
+      ${condCell2(pb.oiMaintained, pb.oiScore, 3)}
+      ${condCell2(pb.volShrinking, pb.volScore, 3)}
+      ${condCell2(pb.cvdBottoming, pb.cvdScore, 3)}
+      ${condCell2(pb.fundingMaintained, pb.fundingScore, 2)}
+      ${condCell2(pb.noShortPanic, pb.lsScore, 2)}
+      <td class="mono">${fmtV(d.volume24h)}</td>
+      <td>
+        <span style="font-size:11px;font-weight:700;color:${verdictColor}">${pb.verdict}</span>
+        <div style="font-size:9px;color:var(--text-dim);margin-top:2px">${pb.condsMet}/6 조건</div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ════════════════════════════
 //  예열 점수 계산 (정교화 v2)
 //  멀티TF OI + CVD EMA + 연속성 + 볼륨 프로파일
 // ════════════════════════════
@@ -1959,12 +2274,13 @@ function exportCSV(){
 }
 
 function sw(name){
-  const ns=['scanner','gunpowder','squeeze','presqueeze','history','pattern','whale','cexwallet','exchange'];
+  const ns=['scanner','gunpowder','squeeze','presqueeze','pullback','history','pattern','whale','cexwallet','exchange'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',ns[i]===name));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('panel-'+name).classList.add('on');
   if(name==='history')renderHistory();
   if(name==='pattern')renderPattern();
+  if(name==='pullback')fetchPullbackData();
 }
 function setF(f){curFilter=f;['all','long','short'].forEach(x=>document.getElementById('f'+x[0]).classList.toggle('on',x===f));renderScanner();}
 function setS(s){curMinScore=s;[30,50,70].forEach(x=>document.getElementById('s'+x).classList.toggle('on',x===s));renderScanner();}
