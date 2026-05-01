@@ -454,11 +454,12 @@ td{padding:9px 12px;vertical-align:middle;}
         <thead><tr>
           <th>#</th>
           <th>SYMBOL</th>
-          <th>예열점수</th>
-          <th>① 24h%</th>
-          <th>② OI4h</th>
-          <th>③ 펀딩</th>
-          <th>④ CVD</th>
+          <th>예열점수(EMA)</th>
+          <th>24h%</th>
+          <th>OI 4h/1h</th>
+          <th>펀딩</th>
+          <th>CVD(EMA)</th>
+          <th>연속성</th>
           <th>거래량</th>
           <th>충족조건</th>
           <th>상태</th>
@@ -559,6 +560,64 @@ let useSim = false;
 let allData = [], sqData = [];
 let curFilter='all', curMinScore=30, curSort={key:'score',dir:-1};
 let curWeek=0, refreshTimer, countdown=60;
+
+// ════════════════════════════
+//  예열 전용 상태 (안정성 핵심)
+// ════════════════════════════
+const preState = {
+  // EMA 점수: 급변 방지 (이전70% + 현재30%)
+  emaScore: {},      // { 'BTC': 45.2 }
+  // 연속 충족 횟수: 최소 2회 연속 충족해야 목록 진입
+  streak: {},        // { 'BTC': 3 }
+  // 멀티 TF OI 히스토리
+  oiHistory: {},     // { 'BTC': { h1:[], h4:[], h24:[] } }
+  // CVD EMA
+  cvdEma: {},        // { 'BTC': 0.12 }
+  // 거래량 EMA (조용한 증가 감지)
+  volEma: {},        // { 'BTC': 1.2 }
+
+  updateEMA(sym, newScore) {
+    const prev = this.emaScore[sym] || newScore;
+    this.emaScore[sym] = prev * 0.7 + newScore * 0.3;
+    return this.emaScore[sym];
+  },
+
+  updateStreak(sym, condMet) {
+    if (condMet) this.streak[sym] = (this.streak[sym] || 0) + 1;
+    else this.streak[sym] = Math.max(0, (this.streak[sym] || 0) - 1);
+    return this.streak[sym];
+  },
+
+  updateCVDema(sym, ratio) {
+    const prev = this.cvdEma[sym] || ratio;
+    this.cvdEma[sym] = prev * 0.6 + ratio * 0.4;
+    return this.cvdEma[sym];
+  },
+
+  updateVolEma(sym, volRatio) {
+    const prev = this.volEma[sym] || volRatio;
+    this.volEma[sym] = prev * 0.7 + volRatio * 0.3;
+    return this.volEma[sym];
+  },
+
+  pushOI(sym, period, val) {
+    if (!this.oiHistory[sym]) this.oiHistory[sym] = { h1:[], h4:[], h24:[] };
+    const key = period==='1h'?'h1':period==='4h'?'h4':'h24';
+    this.oiHistory[sym][key].push(val);
+    if (this.oiHistory[sym][key].length > 5) this.oiHistory[sym][key].shift();
+  },
+
+  getOITrend(sym) {
+    const h = this.oiHistory[sym];
+    if (!h) return { h1Trend:0, h4Trend:0, consistent:false };
+    const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+    const h1Trend = avg(h.h1);
+    const h4Trend = avg(h.h4);
+    // 3개 타임프레임 모두 양수 = consistent
+    const consistent = h1Trend > 0 && h4Trend > 3;
+    return { h1Trend, h4Trend, consistent };
+  }
+};
 
 // ════════════════════════════
 //  캐시 - 랜덤 방지 핵심
@@ -693,21 +752,31 @@ async function getOIHist(sym, period) {
 
 async function getCVD(sym) {
   try {
-    const trades = await apiFetch(`${BAPI}/fapi/v1/aggTrades?symbol=${sym}&limit=200`);
+    // 500틱으로 확대 (더 신뢰도 높은 CVD)
+    const trades = await apiFetch(`${BAPI}/fapi/v1/aggTrades?symbol=${sym}&limit=500`);
     let buy = 0, sell = 0;
-    trades.forEach(t => {
+    let recentBuy = 0, recentSell = 0;
+    trades.forEach((t, i) => {
       const v = parseFloat(t.q) * parseFloat(t.p);
-      t.m ? sell += v : buy += v;
+      if (t.m) { sell += v; if(i >= trades.length-100) recentSell += v; }
+      else { buy += v; if(i >= trades.length-100) recentBuy += v; }
     });
     const delta = buy - sell, total = buy + sell;
-    const result = { delta, ratio: total > 0 ? delta / total : 0, rising: delta > 0 };
-    cache.setCVD(sym, result); // 성공하면 캐시에 저장
+    const ratio = total > 0 ? delta / total : 0;
+    // 최근 100틱 vs 전체 비교 → 방향 전환 감지
+    const recentTotal = recentBuy + recentSell;
+    const recentRatio = recentTotal > 0 ? (recentBuy-recentSell)/recentTotal : 0;
+    // EMA 적용
+    const emaRatio = preState.updateCVDema(sym, ratio);
+    // 전환 감지: 전체는 음수인데 최근이 양수로 바뀌는 시점
+    const turning = recentRatio > 0 && ratio < 0.1; // 막 전환되는 중
+    const result = { delta, ratio, recentRatio, emaRatio, rising: emaRatio > 0, turning };
+    cache.setCVD(sym, result);
     return result;
   } catch {
-    // 실패 → 캐시 사용, 캐시도 없으면 중립값 고정
     const cached = cache.getCVD(sym);
     if (cached) return cached;
-    return { delta: 0, ratio: 0, rising: false };
+    return { delta:0, ratio:0, recentRatio:0, emaRatio:0, rising:false, turning:false };
   }
 }
 
@@ -804,17 +873,21 @@ async function fetchAll(){
 
   setProgress(40,'③ OI 히스토리 수집 중...',3);
 
-  // OI: 성공하면 캐시 저장, 실패하면 캐시 or 0
+  // OI: top60으로 확대 + 히스토리 누적
+  const oiTargets = top100.slice(0,60);
   const oiRes=await Promise.allSettled(
-    top30.map(async t=>{
+    oiTargets.map(async t=>{
       const oi1h = await getOIHist(t.symbol,'1h');
       const oi4h = await getOIHist(t.symbol,'4h');
-      cache.setOI(t.symbol, { oi1h, oi4h }); // 캐시 저장
+      cache.setOI(t.symbol, { oi1h, oi4h });
+      // 히스토리 누적 (멀티TF 트렌드 분석용)
+      preState.pushOI(t.symbol, '1h', oi1h);
+      preState.pushOI(t.symbol, '4h', oi4h);
       return { symbol:t.symbol, oi1h, oi4h };
     })
   );
   const oiMap={};
-  oiRes.forEach((r,i)=>{ if(r.status==='fulfilled') oiMap[top30[i].symbol]=r.value; });
+  oiRes.forEach((r,i)=>{ if(r.status==='fulfilled') oiMap[oiTargets[i].symbol]=r.value; });
 
   setProgress(60,'④ 데이터 처리 중...',4);
 
@@ -1193,49 +1266,124 @@ function renderPattern(){
 // ════════════════════════════
 //  PRE-SQUEEZE 예열 분석
 // ════════════════════════════
+// ════════════════════════════
+//  예열 점수 계산 (정교화 v2)
+//  멀티TF OI + CVD EMA + 연속성 + 볼륨 프로파일
+// ════════════════════════════
 function calcPreScore(item, cvd) {
   let sc = 0;
   const conds = [];
+  const sym = item.fullSym || item.symbol + 'USDT';
 
-  // ① 가격 횡보 (-5% ~ +5%) — 핵심 조건
-  const isFlat = item.change24h >= -5 && item.change24h <= 5;
-  if (!isFlat) return null; // 이미 급등/급락한 코인 제외
+  // ━━━ 기본 필터 ━━━
+  // 가격 횡보 조건: 24h -6%~+6% (약간 완화)
+  const isFlat24h = item.change24h >= -6 && item.change24h <= 6;
+  if (!isFlat24h) return null;
 
-  // ② OI 4h 축적 (+10% 이상)
-  if (item.oi4h >= 10) { sc += 35; conds.push('OI축적'); }
-  else if (item.oi4h >= 5) { sc += 15; conds.push('OI증가'); }
-
-  // ③ 펀딩비 음수 (숏 축적)
-  if (item.funding < -0.1) { sc += 30; conds.push('숏과열'); }
-  else if (item.funding < -0.03) { sc += 15; conds.push('음펀딩'); }
-
-  // ④ CVD 전환 시작 (0 근처 or 약한 양수)
-  if (cvd) {
-    if (cvd.ratio > 0.02 && cvd.ratio < 0.3) { sc += 25; conds.push('CVD전환'); }
-    else if (cvd.ratio >= 0.3) { sc += 10; conds.push('CVD상승'); } // 이미 많이 올라간 건 감점
+  // ━━━ [A] 멀티 타임프레임 OI 분석 (최대 25점) ━━━
+  const oiTrend = preState.getOITrend(sym);
+  if (oiTrend.consistent) {
+    // 1h + 4h 동시 상승 = 진짜 축적
+    sc += 25;
+    conds.push('OI멀티TF↑');
+  } else if (oiTrend.h4Trend > 15) {
+    sc += 18;
+    conds.push('OI4h강↑');
+  } else if (oiTrend.h4Trend > 5) {
+    sc += 10;
+    conds.push('OI4h↑');
+  } else if (item.oi4h > 8) {
+    // 히스토리 없으면 현재값만 사용
+    sc += 8;
+    conds.push('OI축적');
   }
 
-  // ⑤ OI 1h도 양수 (단기 모멘텀 시작)
-  if (item.oi1h > 3) { sc += 10; conds.push('단기OI↑'); }
+  // ━━━ [B] CVD EMA 기반 분석 (최대 20점) ━━━
+  if (cvd) {
+    const ema = cvd.emaRatio || cvd.ratio;
+    preState.updateCVDema(sym, cvd.ratio);
 
-  // 거래량이 평소보다 살짝 증가 (폭발 전 조짐)
-  if (item.volRatio > 0.3 && item.volRatio < 2) { sc += 10; }
+    if (cvd.turning) {
+      // 최고 신호: 전체 CVD 음수인데 최근이 양수 전환
+      sc += 20;
+      conds.push('CVD전환⚡');
+    } else if (ema > 0.03 && ema < 0.25) {
+      // EMA 기반 약한 매수 우세 (이상적인 예열 상태)
+      sc += 15;
+      conds.push('CVD매수↑');
+    } else if (cvd.recentRatio > 0.05) {
+      // 최근 100틱만 매수 우세
+      sc += 10;
+      conds.push('단기CVD↑');
+    }
+  }
 
-  // 점수 15 미만이면 제외 (의미없는 코인)
-  if (sc < 15) return null;
+  // ━━━ [C] 펀딩비 깊이 분석 (최대 15점) ━━━
+  if (item.funding < -0.3) {
+    sc += 15;
+    conds.push('음펀극단');
+  } else if (item.funding < -0.1) {
+    sc += 12;
+    conds.push('음펀과열');
+  } else if (item.funding < -0.03) {
+    sc += 7;
+    conds.push('음펀딩');
+  }
 
-  // 예열 상태 판정
+  // ━━━ [D] 볼륨 프로파일 (최대 10점) ━━━
+  // 조용히 거래량 늘어나는 패턴 (폭발 전 조짐)
+  const volEma = preState.updateVolEma(sym, item.volRatio);
+  if (volEma > 0.5 && volEma < 2.0 && item.volRatio > 0.3) {
+    // EMA 기준 거래량 서서히 증가 중
+    sc += 10;
+    conds.push('거래량↑');
+  } else if (item.volRatio > 0.2 && item.volRatio < 1.5) {
+    sc += 5;
+    conds.push('거래량증가');
+  }
+
+  // ━━━ [E] OI 1h 단기 모멘텀 (최대 10점) ━━━
+  if (item.oi1h > 8) { sc += 10; conds.push('단기OI↑'); }
+  else if (item.oi1h > 3) { sc += 5; }
+
+  // ━━━ [F] 연속성 보너스/패널티 (최대 30점) ━━━
+  // 기본 조건 충족 여부 (OI + 펀딩 둘 다 있어야)
+  const basicMet = (item.oi4h > 5 || oiTrend.h4Trend > 3) && item.funding < -0.03;
+  const streak = preState.updateStreak(sym, basicMet);
+  if (streak >= 5) { sc += 30; conds.push(`연속${streak}회`); }
+  else if (streak >= 3) { sc += 20; conds.push(`연속${streak}회`); }
+  else if (streak >= 2) { sc += 10; conds.push(`연속${streak}회`); }
+  else if (streak < 1) {
+    // 처음 감지된 코인 → 아직 신뢰도 낮음, 점수 감산
+    sc = Math.max(0, sc - 15);
+  }
+
+  // ━━━ EMA 점수 적용 (급변 방지) ━━━
+  const rawSc = Math.min(99, sc);
+  const emaSc = Math.round(preState.updateEMA(sym, rawSc));
+
+  // 최소 점수 20 미만이면 제외
+  if (emaSc < 20) return null;
+
+  // ━━━ 상태 판정 ━━━
   let status, statusColor;
-  if (sc >= 80) { status = '🔴 발화직전'; statusColor = 'var(--red)'; }
-  else if (sc >= 60) { status = '🟠 예열강함'; statusColor = 'var(--orange)'; }
-  else if (sc >= 40) { status = '🟡 예열중'; statusColor = 'var(--yellow)'; }
+  if (emaSc >= 80) { status = '🔴 발화직전'; statusColor = 'var(--red)'; }
+  else if (emaSc >= 65) { status = '🟠 예열강함'; statusColor = 'var(--orange)'; }
+  else if (emaSc >= 45) { status = '🟡 예열중'; statusColor = 'var(--yellow)'; }
   else { status = '🟢 초기감지'; statusColor = 'var(--green)'; }
 
-  return { sc: Math.min(99, sc), conds, status, statusColor };
+  return {
+    sc: emaSc,
+    rawSc,          // EMA 적용 전 원본 점수
+    streak,         // 연속 충족 횟수
+    conds,
+    status,
+    statusColor,
+    oiTrend         // 멀티TF OI 트렌드
+  };
 }
 
 function renderPreSqueeze() {
-  // allData + sqData(CVD 있음) 조합
   const cvdMap = {};
   sqData.forEach(d => { if (d.cvd) cvdMap[d.symbol] = d.cvd; });
 
@@ -1249,21 +1397,24 @@ function renderPreSqueeze() {
     .filter(Boolean)
     .sort((a, b) => b.pre.sc - a.pre.sc);
 
-  // 카운트 업데이트
   document.getElementById('tc-pre').textContent = preData.length;
   document.getElementById('preBannerNum').textContent = preData.length;
 
   if (!preData.length) {
-    document.getElementById('preBody').innerHTML = `<tr><td colspan="10"><div class="empty">예열 중인 코인 없음<br><small>현재 횡보(-5%~+5%) + 조건 충족 코인이 없습니다</small></div></td></tr>`;
+    document.getElementById('preBody').innerHTML = `<tr><td colspan="11"><div class="empty">예열 중인 코인 없음<br><small>횡보(-6%~+6%) + 조건 충족 + 최소 2회 연속 감지 필요</small></div></td></tr>`;
     return;
   }
 
   document.getElementById('preBody').innerHTML = preData.map((d, i) => {
-    const cvdRatio = d.cvd ? d.cvd.ratio : 0;
-    const cvdPct = Math.min(100, Math.abs(cvdRatio) * 100);
+    const cvdRatio = d.cvd ? (d.cvd.emaRatio || d.cvd.ratio) : 0;
+    const cvdRecent = d.cvd ? (d.cvd.recentRatio || 0) : 0;
+    const cvdTurning = d.cvd && d.cvd.turning;
+    const cvdPct = Math.min(100, Math.abs(cvdRatio) * 200);
     const cvdColor = cvdRatio >= 0 ? 'var(--green)' : 'var(--red)';
+    const oiTrend = d.pre.oiTrend;
+    const streak = d.pre.streak || 0;
 
-    return `<tr style="${d.pre.sc >= 70 ? 'background:rgba(187,102,255,.04)' : ''}">
+    return `<tr style="${d.pre.sc >= 70 ? 'background:rgba(187,102,255,.05)' : d.pre.sc >= 50 ? 'background:rgba(187,102,255,.02)' : ''}">
       <td class="dim mono">${i+1}</td>
       <td class="sym">${d.symbol}</td>
       <td>
@@ -1271,21 +1422,40 @@ function renderPreSqueeze() {
           <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:var(--purple)">${d.pre.sc}</span>
           <div class="score-bar"><div class="score-fill" style="width:${d.pre.sc}%;background:var(--purple)"></div></div>
         </div>
+        <div style="font-size:9px;color:var(--text-dim);margin-top:2px">원본: ${d.pre.rawSc}</div>
       </td>
-      <td class="mono ${d.change24h>=0?'pos':'neg'}">${fmt(d.change24h)}%
-        <div style="font-size:9px;color:var(--text-dim)">횡보중</div>
-      </td>
-      <td class="mono ${d.oi4h>=0?'pos':'neg'}">${fmt(d.oi4h)}%</td>
-      <td class="mono ${d.funding<0?'pos':'neg'}">${d.funding.toFixed(4)}%</td>
       <td>
-        <div class="cvd-bar" style="width:60px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;display:inline-block;vertical-align:middle">
-          <div style="height:100%;width:${cvdPct}%;background:${cvdColor};border-radius:2px"></div>
+        <span class="mono ${d.change24h>=0?'pos':'neg'}">${fmt(d.change24h)}%</span>
+        <div style="font-size:9px;color:var(--text-dim)">횡보</div>
+      </td>
+      <td>
+        <div style="font-size:11px">
+          <span class="mono ${d.oi4h>=0?'pos':'neg'}">${fmt(d.oi4h,1)}%</span>
+          ${oiTrend.consistent ? '<span style="font-size:9px;color:var(--green);margin-left:3px">멀티↑</span>' : ''}
         </div>
-        <span class="mono" style="font-size:9px;color:${cvdColor};margin-left:4px">${(cvdRatio*100).toFixed(1)}%</span>
+        <div style="font-size:9px;color:var(--text-dim)">1h: <span class="${d.oi1h>=0?'pos':'neg'}">${fmt(d.oi1h,1)}%</span></div>
+      </td>
+      <td class="mono ${d.funding<0?'pos':'neg'}">${d.funding.toFixed(3)}%</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:4px">
+          <div style="width:50px;height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+            <div style="height:100%;width:${cvdPct}%;background:${cvdColor};border-radius:2px"></div>
+          </div>
+          <span class="mono" style="font-size:9px;color:${cvdColor}">${(cvdRatio*100).toFixed(1)}%</span>
+          ${cvdTurning ? '<span style="font-size:9px;color:var(--orange)">⚡전환</span>' : ''}
+        </div>
+        <div style="font-size:9px;color:var(--text-dim)">최근: <span style="color:${cvdRecent>=0?'var(--green)':'var(--red)'}">${(cvdRecent*100).toFixed(1)}%</span></div>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:3px">
+          ${[...Array(Math.min(streak,5))].map((_,i)=>`<div style="width:8px;height:8px;border-radius:2px;background:${streak>=5?'var(--red)':streak>=3?'var(--orange)':'var(--green)'}"></div>`).join('')}
+          ${[...Array(Math.max(0,5-streak))].map(()=>`<div style="width:8px;height:8px;border-radius:2px;background:var(--border)"></div>`).join('')}
+        </div>
+        <div style="font-size:9px;color:var(--text-dim);margin-top:2px">${streak}회 연속</div>
       </td>
       <td class="mono">${fmtV(d.volume24h)}</td>
       <td>
-        <div style="display:flex;gap:3px;flex-wrap:wrap">
+        <div style="display:flex;gap:2px;flex-wrap:wrap">
           ${d.pre.conds.map(c => `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(187,102,255,.1);border:1px solid rgba(187,102,255,.25);color:var(--purple);font-family:'JetBrains Mono',monospace">${c}</span>`).join('')}
         </div>
       </td>
