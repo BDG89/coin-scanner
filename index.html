@@ -356,7 +356,7 @@ td{padding:9px 12px;vertical-align:middle;}
     <div class="sq-banner-icon">⚡</div>
     <div class="sq-banner-text">
       <h3>숏스퀴즈 폭발 감지 시스템</h3>
-      <p><strong style="color:var(--orange)">4가지 조건</strong> 동시 충족 시 숏스퀴즈 직전으로 판단<br>① 가격↑+롱비율↓ &nbsp;② OI증가 &nbsp;③ CVD변곡 &nbsp;④ 음펀비과열</p>
+      <p><strong style="color:var(--orange)">4가지 조건 + 강도점수 + 연속성</strong> 복합 판단<br>① 가격↑+롱↓(추세) &nbsp;② OI멀티TF &nbsp;③ CVD EMA변곡 &nbsp;④ 음펀비깊이<br><span style="font-size:10px;color:var(--text-dim)">FULL = 4개조건 + 강도60+ + 2회연속 충족</span></p>
     </div>
     <div class="sq-count"><div class="num" id="sqBannerNum">0</div><div class="lbl">감지 코인</div></div>
   </div>
@@ -613,9 +613,67 @@ const preState = {
     const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
     const h1Trend = avg(h.h1);
     const h4Trend = avg(h.h4);
-    // 3개 타임프레임 모두 양수 = consistent
     const consistent = h1Trend > 0 && h4Trend > 3;
     return { h1Trend, h4Trend, consistent };
+  }
+};
+
+// ════════════════════════════
+//  숏스퀴즈 전용 상태
+//  연속성 + EMA + LS히스토리
+// ════════════════════════════
+const sqState = {
+  // FULL/HIGH 연속 횟수
+  streak: {},       // { 'BTC': 3 }
+  // 스퀴즈 강도 EMA
+  strengthEma: {},  // { 'BTC': 72.3 }
+  // 롱숏 비율 히스토리 (추세 판단)
+  lsHistory: {},    // { 'BTC': [52, 50, 48] } 감소 추세
+  // CVD 히스토리
+  cvdHistory: {},   // { 'BTC': [-0.1, 0.05, 0.12] } 전환 추세
+
+  updateStreak(sym, grade) {
+    const isMet = grade === 'FULL' || grade === 'HIGH';
+    if (isMet) this.streak[sym] = (this.streak[sym] || 0) + 1;
+    else this.streak[sym] = Math.max(0, (this.streak[sym] || 0) - 1);
+    return this.streak[sym];
+  },
+
+  updateStrengthEma(sym, val) {
+    const prev = this.strengthEma[sym] || val;
+    this.strengthEma[sym] = prev * 0.65 + val * 0.35;
+    return this.strengthEma[sym];
+  },
+
+  pushLS(sym, longPct) {
+    if (!this.lsHistory[sym]) this.lsHistory[sym] = [];
+    this.lsHistory[sym].push(longPct);
+    if (this.lsHistory[sym].length > 6) this.lsHistory[sym].shift();
+  },
+
+  getLSTrend(sym) {
+    const h = this.lsHistory[sym] || [];
+    if (h.length < 2) return { dropping: false, speed: 0 };
+    const first = h[0], last = h[h.length-1];
+    const speed = first - last; // 양수 = 롱비율 감소
+    return { dropping: speed > 1, speed };
+  },
+
+  pushCVD(sym, ratio) {
+    if (!this.cvdHistory[sym]) this.cvdHistory[sym] = [];
+    this.cvdHistory[sym].push(ratio);
+    if (this.cvdHistory[sym].length > 6) this.cvdHistory[sym].shift();
+  },
+
+  getCVDTrend(sym) {
+    const h = this.cvdHistory[sym] || [];
+    if (h.length < 2) return { turning: false, accelerating: false };
+    const first = h[0], last = h[h.length-1];
+    // 음수에서 양수로 전환
+    const turning = first < 0 && last > 0;
+    // 양수이고 가속 중
+    const accelerating = last > first && last > 0.05;
+    return { turning, accelerating };
   }
 };
 
@@ -826,14 +884,67 @@ function getLayer(item,score){
   return l3?3:l2?2:l1?1:0;
 }
 
-function checkSqueeze(item,cvd,ls){
-  const c1=item.change24h>0&&ls.dropping;
-  const c2=item.oi1h>3&&item.oi4h>5;
-  const c3=cvd.rising&&cvd.ratio>0.05;
-  const c4=item.funding<-0.05;
-  const n=[c1,c2,c3,c4].filter(Boolean).length;
-  const grade=n===4?'FULL':n===3?'HIGH':n===2?'MED':'LOW';
-  return{c1,c2,c3,c4,n,grade};
+function checkSqueeze(item, cvd, ls) {
+  const sym = item.fullSym || item.symbol + 'USDT';
+
+  // ━━━ 히스토리 누적 ━━━
+  sqState.pushLS(sym, ls.longPct || 50);
+  sqState.pushCVD(sym, cvd.emaRatio || cvd.ratio || 0);
+
+  const lsTrend = sqState.getLSTrend(sym);
+  const cvdTrend = sqState.getCVDTrend(sym);
+
+  // ━━━ 조건 1: 가격↑ + 롱비율↓ (히스토리 기반) ━━━
+  const c1 = item.change24h > 0 && (ls.dropping || lsTrend.dropping);
+  const c1_strength = c1 ? (lsTrend.speed > 3 ? 3 : lsTrend.speed > 1 ? 2 : 1) : 0;
+
+  // ━━━ 조건 2: OI 증가 (멀티TF) ━━━
+  const oiTrend = preState.getOITrend(sym);
+  const c2 = (item.oi1h > 2 && item.oi4h > 3) || oiTrend.consistent;
+  const c2_strength = oiTrend.consistent ? 3 : (item.oi4h > 20 ? 2 : item.oi4h > 5 ? 1 : 0);
+
+  // ━━━ 조건 3: CVD 변곡 (EMA + 히스토리) ━━━
+  const cvdEma = cvd.emaRatio || cvd.ratio || 0;
+  const c3 = cvdTrend.turning || cvdTrend.accelerating || (cvdEma > 0.05 && cvd.rising);
+  const c3_strength = cvdTrend.turning ? 3 : cvdTrend.accelerating ? 2 : c3 ? 1 : 0;
+
+  // ━━━ 조건 4: 음펀비 과열 (깊이 측정) ━━━
+  const c4 = item.funding < -0.05;
+  const c4_strength = item.funding < -0.3 ? 3 : item.funding < -0.15 ? 2 : item.funding < -0.05 ? 1 : 0;
+
+  const condsMet = [c1, c2, c3, c4].filter(Boolean).length;
+
+  // ━━━ 스퀴즈 강도 점수 계산 ━━━
+  let rawStrength = 0;
+  rawStrength += c1_strength * 25;  // 최대 75
+  rawStrength += c2_strength * 25;  // 최대 75
+  rawStrength += c3_strength * 20;  // 최대 60
+  rawStrength += c4_strength * 15;  // 최대 45
+  rawStrength = Math.min(99, rawStrength);
+
+  // EMA 적용 (급변 방지)
+  const strength = Math.round(sqState.updateStrengthEma(sym, rawStrength));
+
+  // ━━━ 등급 판정 (조건수 + 강도 복합) ━━━
+  let grade;
+  if (condsMet === 4 && strength >= 60) grade = 'FULL';
+  else if (condsMet === 4 && strength < 60) grade = 'HIGH'; // 4개지만 약함
+  else if (condsMet === 3 && strength >= 50) grade = 'HIGH';
+  else if (condsMet === 3 || (condsMet === 2 && strength >= 40)) grade = 'MED';
+  else grade = 'LOW';
+
+  // ━━━ 연속성 ━━━
+  const streak = sqState.updateStreak(sym, grade);
+
+  // FULL은 2회 연속이어야 진짜 FULL
+  if (grade === 'FULL' && streak < 2) grade = 'HIGH';
+
+  return {
+    c1, c2, c3, c4, n: condsMet,
+    c1_strength, c2_strength, c3_strength, c4_strength,
+    strength, rawStrength, grade, streak,
+    lsTrend, cvdTrend
+  };
 }
 
 // ════════════════════════════
@@ -948,7 +1059,19 @@ async function fetchSqData(coins){
     })
   );
   sqData=res.filter(r=>r.status==='fulfilled').map(r=>r.value)
-    .filter(d=>d.sq.n>=2).sort((a,b)=>b.sq.n-a.sq.n||b.score-a.score);
+    .filter(d=>{
+      // 조건 2개 이상 + 강도 10 이상
+      if(d.sq.n < 2 || d.sq.strength < 10) return false;
+      return true;
+    })
+    .sort((a,b)=>{
+      // FULL 우선, 그다음 강도점수, 그다음 연속성
+      const gradeScore={FULL:4,HIGH:3,MED:2,LOW:1};
+      const ga=gradeScore[a.sq.grade]||0, gb=gradeScore[b.sq.grade]||0;
+      if(ga!==gb) return gb-ga;
+      if(a.sq.strength!==b.sq.strength) return b.sq.strength-a.sq.strength;
+      return (b.sq.streak||0)-(a.sq.streak||0);
+    });
 
   // 조건 카드
   if(sqData.length){
@@ -1034,22 +1157,88 @@ function renderGunpowder(){
 }
 
 function renderSqueeze(){
-  if(!sqData.length){document.getElementById('sqBody').innerHTML=`<tr><td colspan="11"><div class="empty">조건 2개+ 충족 코인 없음</div></td></tr>`;return;}
+  if(!sqData.length){
+    document.getElementById('sqBody').innerHTML=`<tr><td colspan="12"><div class="empty">조건 2개+ 충족 코인 없음<br><small>FULL은 2회 연속 충족 필요</small></div></td></tr>`;
+    return;
+  }
   document.getElementById('sqBody').innerHTML=sqData.map((d,i)=>{
     const sq=d.sq;
-    const cvdPct=Math.min(100,Math.abs(d.cvd.ratio)*100);
+    const cvdEma=d.cvd?d.cvd.emaRatio||d.cvd.ratio:0;
+    const cvdPct=Math.min(100,Math.abs(cvdEma)*200);
+    const cvdColor=cvdEma>=0?'var(--green)':'var(--red)';
+    const streak=sq.streak||0;
+
+    // 강도 바 색상
+    const strColor=sq.strength>=70?'var(--red)':sq.strength>=50?'var(--orange)':sq.strength>=30?'var(--yellow)':'var(--blue)';
+
     return`<tr class="${sq.grade==='FULL'?'sq-hl':sq.grade==='HIGH'?'hl':''}">
-      <td class="dim mono">${i+1}</td><td class="sym">${d.symbol}</td>
-      <td>${gaugeHtml(sq.n)}</td>
-      <td>${condCell(sq.c1)} <span class="mono dim" style="font-size:9px">${d.ls.longPct?.toFixed(0)||'--'}%롱</span></td>
-      <td>${condCell(sq.c2)} <span class="mono ${d.oi4h>=0?'pos':'neg'}" style="font-size:9px">${fmt(d.oi4h,1)}%</span></td>
-      <td>${condCell(sq.c3)} <div class="cvd-bar"><div class="cvd-fill" style="width:${cvdPct}%;background:${d.cvd.ratio>=0?'var(--green)':'var(--red)'}"></div></div> <span class="mono ${d.cvd.ratio>=0?'pos':'neg'}" style="font-size:9px">${(d.cvd.ratio*100).toFixed(1)}%</span></td>
-      <td>${condCell(sq.c4)} <span class="mono ${d.funding<0?'pos':'neg'}" style="font-size:9px">${d.funding.toFixed(3)}%</span></td>
-      <td><div style="display:flex;gap:2px;flex-wrap:wrap">
-        ${sq.c1?'<span class="cb cb-ls">가↑롱↓</span>':''}${sq.c2?'<span class="cb cb-oi">OI↑</span>':''}
-        ${sq.c3?'<span class="cb cb-cvd">CVD↑</span>':''}${sq.c4?'<span class="cb cb-fund">음펀</span>':''}
-        ${sq.grade==='FULL'?'<span class="cb cb-full">FULL</span>':''}
-      </div></td>
+      <td class="dim mono">${i+1}</td>
+      <td class="sym">${d.symbol}</td>
+
+      <!-- 강도 점수 -->
+      <td>
+        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:${strColor}">${sq.strength}</div>
+        <div style="width:40px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:3px">
+          <div style="height:100%;width:${sq.strength}%;background:${strColor};border-radius:2px"></div>
+        </div>
+      </td>
+
+      <!-- 연속성 -->
+      <td>
+        <div style="display:flex;gap:2px">
+          ${[...Array(5)].map((_,j)=>`<div style="width:7px;height:7px;border-radius:2px;background:${j<streak?(streak>=4?'var(--red)':streak>=3?'var(--orange)':'var(--green)'):'var(--border)'}"></div>`).join('')}
+        </div>
+        <div style="font-size:9px;color:var(--text-dim);margin-top:2px">${streak}회</div>
+      </td>
+
+      <!-- 조건1: 가격+롱비율 -->
+      <td>
+        ${condCell(sq.c1)}
+        <div style="font-size:9px;color:var(--text-dim)">
+          ${d.ls.longPct?.toFixed(0)||'--'}%롱
+          ${sq.lsTrend&&sq.lsTrend.dropping?'<span style="color:var(--green)">↓추세</span>':''}
+        </div>
+        ${'★'.repeat(sq.c1_strength||0).replace(/★/g,'<span style="color:var(--yellow);font-size:10px">★</span>')}
+      </td>
+
+      <!-- 조건2: OI -->
+      <td>
+        ${condCell(sq.c2)}
+        <span class="mono ${d.oi4h>=0?'pos':'neg'}" style="font-size:9px">${fmt(d.oi4h,1)}%</span>
+        <div style="font-size:9px;color:var(--text-dim)">1h: <span class="${d.oi1h>=0?'pos':'neg'}">${fmt(d.oi1h,1)}%</span></div>
+        ${'★'.repeat(sq.c2_strength||0).replace(/★/g,'<span style="color:var(--yellow);font-size:10px">★</span>')}
+      </td>
+
+      <!-- 조건3: CVD -->
+      <td>
+        ${condCell(sq.c3)}
+        <div style="display:inline-flex;align-items:center;gap:3px">
+          <div style="width:40px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;display:inline-block">
+            <div style="height:100%;width:${cvdPct}%;background:${cvdColor};border-radius:2px"></div>
+          </div>
+          <span class="mono" style="font-size:9px;color:${cvdColor}">${(cvdEma*100).toFixed(1)}%</span>
+        </div>
+        ${sq.cvdTrend&&sq.cvdTrend.turning?'<span style="font-size:9px;color:var(--orange)">⚡전환</span>':sq.cvdTrend&&sq.cvdTrend.accelerating?'<span style="font-size:9px;color:var(--yellow)">↑가속</span>':''}
+      </td>
+
+      <!-- 조건4: 펀딩 -->
+      <td>
+        ${condCell(sq.c4)}
+        <span class="mono ${d.funding<0?'pos':'neg'}" style="font-size:9px">${d.funding.toFixed(3)}%</span>
+        ${'★'.repeat(sq.c4_strength||0).replace(/★/g,'<span style="color:var(--yellow);font-size:10px">★</span>')}
+      </td>
+
+      <!-- 충족 배지 -->
+      <td>
+        <div style="display:flex;gap:2px;flex-wrap:wrap">
+          ${sq.c1?'<span class="cb cb-ls">롱↓</span>':''}
+          ${sq.c2?'<span class="cb cb-oi">OI↑</span>':''}
+          ${sq.c3?'<span class="cb cb-cvd">CVD↑</span>':''}
+          ${sq.c4?'<span class="cb cb-fund">음펀</span>':''}
+          ${sq.grade==='FULL'&&streak>=2?'<span class="cb cb-full">FULL✓</span>':''}
+        </div>
+      </td>
+
       <td class="mono ${d.change24h>=0?'pos':'neg'}">${fmt(d.change24h)}%</td>
       <td class="mono hide-m">${fmtV(d.volume24h)}</td>
       <td>${gradeHtml(sq.grade)}</td>
@@ -1277,7 +1466,7 @@ function calcPreScore(item, cvd) {
 
   // ━━━ 기본 필터 ━━━
   // 가격 횡보 조건: 24h -6%~+6% (약간 완화)
-  const isFlat24h = item.change24h >= -6 && item.change24h <= 6;
+  const isFlat24h = item.change24h >= -12 && item.change24h <= 12;
   if (!isFlat24h) return null;
 
   // ━━━ [A] 멀티 타임프레임 OI 분석 (최대 25점) ━━━
@@ -1354,8 +1543,8 @@ function calcPreScore(item, cvd) {
   else if (streak >= 3) { sc += 20; conds.push(`연속${streak}회`); }
   else if (streak >= 2) { sc += 10; conds.push(`연속${streak}회`); }
   else if (streak < 1) {
-    // 처음 감지된 코인 → 아직 신뢰도 낮음, 점수 감산
-    sc = Math.max(0, sc - 15);
+    // 처음 감지된 코인 → 약간 감산만
+    sc = Math.max(0, sc - 5);
   }
 
   // ━━━ EMA 점수 적용 (급변 방지) ━━━
@@ -1363,7 +1552,7 @@ function calcPreScore(item, cvd) {
   const emaSc = Math.round(preState.updateEMA(sym, rawSc));
 
   // 최소 점수 20 미만이면 제외
-  if (emaSc < 20) return null;
+  if (emaSc < 15) return null;
 
   // ━━━ 상태 판정 ━━━
   let status, statusColor;
