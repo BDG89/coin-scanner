@@ -314,7 +314,7 @@ td{padding:9px 12px;vertical-align:middle;}
   <div class="tab" onclick="sw('presqueeze')" style="color:var(--purple)">⏳ 예열중 <span class="tbadge" id="tc-pre" style="background:var(--purple-dim);border-color:rgba(187,102,255,.3);color:var(--purple)">0</span></div>
   <div class="tab" onclick="sw('pullback')" style="color:#00ddff">⬇️ 눌림목 <span class="tbadge" id="tc-pb" style="background:rgba(0,221,255,.08);border-color:rgba(0,221,255,.3);color:#00ddff">0</span></div>
   <div class="tab" onclick="sw('history')">📦 히스토리 <span class="tbadge" id="tc-h">0</span></div>
-  <div class="tab" onclick="sw('pattern')">🔬 패턴</div>
+  <div class="tab" onclick="sw('pattern')">🧠 학습분석 <span class="tbadge" id="tc-learn" style="background:rgba(0,255,136,.07);border-color:rgba(0,255,136,.2);color:var(--green)">0</span></div>
   <div class="tab" onclick="sw('whale')">🐋 고래</div>
   <div class="tab" onclick="sw('cexwallet')" style="color:#ff9500">🏛 제단지갑 <span class="tbadge" id="tc-cex" style="background:rgba(255,149,0,.1);border-color:rgba(255,149,0,.3);color:#ff9500">0</span></div>
   <div class="tab" onclick="sw('exchange')">🏦 거래소</div>
@@ -539,7 +539,83 @@ td{padding:9px 12px;vertical-align:middle;}
 
 <!-- 패턴분석 -->
 <div class="tab-panel" id="panel-pattern">
-  <div id="patContent"><div class="empty" style="padding:50px">🔬 최소 5개 데이터 필요</div></div>
+
+  <!-- 상단 요약 -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px" id="learnSummary">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:9px;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px">추적 중</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--blue)" id="ls-tracking">0</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:9px;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px">결과 완료</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--text)" id="ls-done">0</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:9px;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px">전체 적중률</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--green)" id="ls-winrate">--%</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:9px;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px">평균 수익률</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700" id="ls-avggain">--%</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:9px;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px">최고 수익</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--green)" id="ls-best">--%</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:9px;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px">자동보정점수</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--orange)" id="ls-calibrated">--</div>
+    </div>
+  </div>
+
+  <!-- 패턴 인사이트 -->
+  <div id="learnInsight" style="padding:14px 16px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;margin-bottom:14px;font-size:11px;color:var(--text2);line-height:1.8">
+    🧠 데이터가 쌓이면 어떤 조건 조합이 실제로 효과적인지 분석합니다...
+  </div>
+
+  <!-- 지표별 적중률 -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+    <div class="tbox">
+      <div class="tbox-hdr"><div class="tbox-title">📊 지표별 적중률</div><div class="tbox-sub">조건 충족 시 실제 상승 비율</div></div>
+      <div id="learnIndicators" style="padding:14px">
+        <div class="empty">결과 데이터 필요</div>
+      </div>
+    </div>
+    <div class="tbox">
+      <div class="tbox-hdr"><div class="tbox-title">🏆 최고 조합 패턴</div><div class="tbox-sub">동시 충족 시 적중률 높은 조합</div></div>
+      <div id="learnCombos" style="padding:14px">
+        <div class="empty">결과 데이터 필요</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과 추적 테이블 -->
+  <div class="tbox">
+    <div class="tbox-hdr">
+      <div class="tbox-title">📈 결과 추적 로그</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="tbox-sub" id="trackUpdateTime">--</div>
+        <button class="btn" onclick="updateTrackResults()" style="font-size:10px;padding:4px 10px">🔄 결과 업데이트</button>
+        <button class="btn" onclick="syncFromWorkers().then(()=>renderLearn())" style="font-size:10px;padding:4px 10px;border-color:var(--blue);color:var(--blue)">☁️ 서버 동기화</button>
+        <button class="btn red-btn" onclick="clearTrackDB()" style="font-size:10px;padding:4px 10px">🗑 초기화</button>
+        <button class="btn" onclick="exportTrackCSV()" style="font-size:10px;padding:4px 10px">📥 CSV</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>감지시각</th><th>SYMBOL</th><th>탭</th><th>점수</th>
+          <th>진입가</th><th>펀딩</th><th>OI4h</th><th>CVD</th>
+          <th>24h후가격</th><th>수익률</th><th>결과</th>
+        </tr></thead>
+        <tbody id="trackBody">
+          <tr><td colspan="11"><div class="empty">추적 데이터 없음<br><small>스캐너/예열/눌림목 탭에서 코인이 감지되면 자동 저장됩니다</small></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="patContent"></div>
 </div>
 
 <!-- 고래 -->
@@ -610,7 +686,7 @@ td{padding:9px 12px;vertical-align:middle;}
   <div class="tbox">
     <div class="tbox-hdr">
       <div class="tbox-title" style="color:#00ddff">⬇️ 눌림목 진입 후보</div>
-      <div class="tbox-sub">🎯진입 = 5개+ 조건 · 👀대기 = 3~4개 · ⏸관망 = 2개 이하</div>
+      <div class="tbox-sub">🎯진입 = 5개+조건 점수65+ · 👀대기 = 4개+조건 점수52+ · 관망은 표시 안 함</div>
     </div>
     <div style="overflow-x:auto">
       <table>
@@ -877,6 +953,71 @@ const marketRegime = {
 //  DB
 // ════════════════════════════
 const DB_KEY='scanner_v31';
+const TRACK_KEY='scanner_track_v1';  // 결과 추적 DB (로컬)
+const WORKERS_URL = 'https://scanner-cron.wkdck1.workers.dev'; // Cloudflare Workers
+
+// ━━━ DB 로드/저장 (로컬 + Workers KV 동기화) ━━━
+const loadTrackDB = () => {
+  try { return JSON.parse(localStorage.getItem(TRACK_KEY)||'[]'); }
+  catch { return []; }
+};
+const saveTrackDB = data => localStorage.setItem(TRACK_KEY, JSON.stringify(data));
+
+// Workers KV에서 데이터 가져오기
+async function syncFromWorkers() {
+  try {
+    const res = await fetch(`${WORKERS_URL}/track`);
+    if (!res.ok) return false;
+    const kvData = await res.json();
+    if (!Array.isArray(kvData) || kvData.length === 0) return false;
+
+    // 로컬 + KV 데이터 병합 (중복 제거)
+    const local = loadTrackDB();
+    const localIds = new Set(local.map(d => d.id));
+    const newItems = kvData.filter(d => !localIds.has(d.id));
+    const merged = [...local, ...newItems]
+      .sort((a,b) => b.timestamp - a.timestamp)
+      .slice(0, 500); // 최대 500개
+    saveTrackDB(merged);
+    updateLearnCount();
+    showToast(`☁️ Workers KV 동기화 완료 (${newItems.length}개 추가)`);
+    return true;
+  } catch(e) {
+    console.warn('Workers 동기화 실패:', e.message);
+    return false;
+  }
+}
+
+// Workers KV에 로컬 데이터 업로드
+async function syncToWorkers(items) {
+  try {
+    await fetch(`${WORKERS_URL}/track`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(items)
+    });
+  } catch(e) {
+    console.warn('Workers 업로드 실패:', e.message);
+  }
+}
+
+// Workers 통계 가져오기
+async function fetchWorkerStats() {
+  try {
+    const res = await fetch(`${WORKERS_URL}/stats`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+// Workers 최신 스캔 결과 가져오기
+async function fetchWorkerScan() {
+  try {
+    const res = await fetch(`${WORKERS_URL}/scan`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
 const loadDB=()=>{try{return JSON.parse(localStorage.getItem(DB_KEY)||'{}')}catch{return{}}};
 const saveDB=db=>localStorage.setItem(DB_KEY,JSON.stringify(db));
 const todayKey=()=>new Date().toISOString().slice(0,10);
@@ -1315,8 +1456,10 @@ async function fetchAll(){
   if(auto.length>0) saveCoins(auto.map(snap));
   updateSavedCount();
 
-  renderScanner();renderGunpowder();renderWhale();renderExchange();
+  renderScanner();renderGunpowder();renderCEXWallet();renderWhale();renderExchange();
   checkAlerts(cands);
+  // 전체 탭 자동 추적 (2초 후 - 렌더 완료 후)
+  setTimeout(autoTrackFromData, 2000);
 
   setProgress(80,'⑤ 숏스퀴즈 분석 중...',5);
   fetchSqData(allData.slice(0,40));
@@ -1370,6 +1513,8 @@ async function fetchSqData(coins){
   sqData.filter(d=>d.sq.grade==='FULL').slice(0,2).forEach(d=>{
     showAlertItem(`🚨 ${d.symbol} 숏스퀴즈 FULL!`,`4개 조건 충족 · 점수${d.score} · 펀딩${d.funding.toFixed(3)}%`,'sq');
   });
+  // 숏스퀴즈 자동 추적
+  sqData.filter(d=>d.sq.grade==='FULL'||d.sq.grade==='HIGH').forEach(d=>trackCoin({...d,sq:d.sq},'squeeze'));
 
   setProgress(100,'⑥ 분석 완료!',6);
   hideProgress();
@@ -1648,6 +1793,8 @@ function renderCEXWallet(){
   }).filter(Boolean).sort((a,b)=>b.strength-a.strength);
 
   document.getElementById('tc-cex').textContent=walletData.length;
+  // 전역 저장 (자동 추적용)
+  window._cexData = walletData;
 
   if(!walletData.length){
     document.getElementById('cexBody').innerHTML='<tr><td colspan="9"><div class="empty">현재 대량 이동 감지된 코인 없음</div></td></tr>';
@@ -1867,11 +2014,11 @@ async function analyzePullback(item) {
   const currentPrice = current.close;
   const pullbackDepth = (recentHigh - currentPrice) / recentHigh * 100;
 
-  // 눌림 깊이 조건: -5% ~ -25%
-  const depthOk = pullbackDepth >= 5 && pullbackDepth <= 25;
+  // 눌림 깊이 조건 강화: -6% ~ -18% (더 엄격)
+  const depthOk = pullbackDepth >= 6 && pullbackDepth <= 18;
   const depthScore = depthOk
-    ? (pullbackDepth >= 8 && pullbackDepth <= 15 ? 3  // 이상적 눌림
-     : pullbackDepth >= 5 && pullbackDepth <= 8  ? 2
+    ? (pullbackDepth >= 8 && pullbackDepth <= 14 ? 3  // 이상적 눌림
+     : pullbackDepth >= 6 && pullbackDepth <= 8  ? 2
      : 1)
     : 0;
 
@@ -1881,15 +2028,15 @@ async function analyzePullback(item) {
     : item.change24h > 5;
 
   // ━━━ 3. OI 유지 확인 ━━━
-  // OI 4h가 -20% 미만 감소 없으면 유지로 판단
-  const oiMaintained = item.oi4h > -20;
-  const oiScore = item.oi4h > 0 ? 3 : item.oi4h > -10 ? 2 : item.oi4h > -20 ? 1 : 0;
+  // OI 강화: -10% 이상 감소 없어야 유지로 판단
+  const oiMaintained = item.oi4h > -10;
+  const oiScore = item.oi4h > 5 ? 3 : item.oi4h > 0 ? 2 : item.oi4h > -10 ? 1 : 0;
 
   // ━━━ 4. 거래량 축소 확인 ━━━
   const upVol = prev12.reduce((s,c)=>s+c.vol,0) / Math.max(prev12.length,1);
   const downVol = recent6.reduce((s,c)=>s+c.vol,0) / Math.max(recent6.length,1);
-  const volShrinking = downVol < upVol * 0.8; // 눌림 거래량 < 상승 거래량 80%
-  const volScore = downVol < upVol * 0.5 ? 3 : downVol < upVol * 0.7 ? 2 : volShrinking ? 1 : 0;
+  const volShrinking = downVol < upVol * 0.7; // 강화: 80% → 70%
+  const volScore = downVol < upVol * 0.45 ? 3 : downVol < upVol * 0.6 ? 2 : volShrinking ? 1 : 0;
 
   // ━━━ 5. CVD 바닥 확인 ━━━
   const cvd = cache.getCVD(sym);
@@ -1909,18 +2056,31 @@ async function analyzePullback(item) {
   const noShortPanic = !lsTrend.dropping || lsTrend.speed < 5; // 숏 급증 없음
   const lsScore = noShortPanic && (lsCache ? lsCache.longPct > 40 : true) ? 2 : 1;
 
-  // ━━━ 상승 추세 전제 조건 ━━━
-  // 상승 추세 없으면 눌림목 아님 (데드캣 위험)
-  if (!upTrend || !depthOk) return null;
+  // ━━━ 강화된 상승 추세 확인 ━━━
+  // 최근 12봉 중 상승 비율 60% 이상 + 실제 상승폭 5% 이상
+  const upCount = prev12.filter((c,i) => i>0 && c.close > prev12[i-1].close).length;
+  const upTrendStrong = upCount >= 7 && prev12.length >= 6
+    ? prev12[prev12.length-1].close > prev12[0].close * 1.05  // 5% 이상 상승
+    : item.change24h > 8;  // 24h 8% 이상 상승
 
-  // ━━━ 점수 계산 ━━━
+  // 상승 추세 없으면 제외
+  if (!upTrendStrong || !depthOk) return null;
+
+  // ━━━ 추가 필터: 극단적 하락 제외 ━━━
+  // 최근 6봉 중 큰 음봉 2개 이상 = 추세 붕괴 가능성
+  const bigRedCount = recent6.filter(c => (c.open - c.close) / c.open > 0.03).length;
+  if (bigRedCount >= 3) return null; // 너무 강한 하락
+
+  // ━━━ 점수 계산 (가중치 강화) ━━━
   let rawScore = 0;
-  rawScore += depthScore * 20;    // 최대 60
-  rawScore += oiScore * 15;       // 최대 45
+  rawScore += depthScore * 22;    // 최대 66 (깊이 중요도 ↑)
+  rawScore += oiScore * 18;       // 최대 54 (OI 중요도 ↑)
   rawScore += volScore * 15;      // 최대 45
   rawScore += cvdScore * 12;      // 최대 36
   rawScore += fundingScore * 8;   // 최대 16
   rawScore += lsScore * 5;        // 최대 10
+  // 상승 추세 강도 보너스
+  rawScore += Math.min(15, upCount * 2);
   rawScore = Math.min(99, rawScore);
 
   // EMA 적용
@@ -1930,12 +2090,11 @@ async function analyzePullback(item) {
   const condsMet = [depthOk, oiMaintained, volShrinking, cvdBottoming, fundingMaintained, noShortPanic]
     .filter(Boolean).length;
 
-  // 판정
+  // ━━━ 엄격한 판정 ━━━
   let verdict;
-  if (condsMet >= 5 && score >= 60) verdict = '🎯 진입';
-  else if (condsMet >= 4 && score >= 45) verdict = '👀 대기';
-  else if (condsMet >= 3) verdict = '⏸ 관망';
-  else return null;
+  if (condsMet >= 5 && score >= 65) verdict = '🎯 진입';        // 강화: 60→65
+  else if (condsMet >= 4 && score >= 52) verdict = '👀 대기';   // 강화: 45→52
+  else return null;  // 관망 제외 (목록에서 아예 제거)
 
   return {
     score, rawScore, condsMet, verdict,
@@ -1956,7 +2115,8 @@ async function fetchPullbackData() {
   if (!allData.length) return;
 
   // 상위 거래량 50개만 (API 부하)
-  const targets = allData.slice(0, 50);
+  // 거래량 상위 40개만 (정확도 우선)
+  const targets = allData.slice(0, 40);
   document.getElementById('pbBody').innerHTML =
     `<tr><td colspan="11"><div class="loading"><div class="spin" style="border-top-color:#00ddff"></div><div class="loading-txt">Kline 데이터 수집 중... (${targets.length}개 코인)</div></div></td></tr>`;
 
@@ -1985,9 +2145,17 @@ async function fetchPullbackData() {
       'hot'
     );
   });
+  // 눌림목 자동 추적
+  window._pbData = pbData;
+  pbData.filter(d => d.pb.verdict === '🎯 진입' || d.pb.verdict === '👀 대기')
+    .forEach(d => trackCoin({ ...d, pb: d.pb }, 'pullback'));
+  updateLearnCount();
 }
 
 function renderPullback() {
+  // 전역 저장 (자동 추적용)
+  window._pbData = pbData;
+
   if (!pbData.length) {
     document.getElementById('pbBody').innerHTML =
       `<tr><td colspan="11"><div class="empty">눌림목 후보 없음<br><small>상승 추세 + 5~25% 조정 + 조건 3개 이상 필요</small></div></td></tr>`;
@@ -2173,6 +2341,8 @@ function renderPreSqueeze() {
 
   document.getElementById('tc-pre').textContent = preData.length;
   document.getElementById('preBannerNum').textContent = preData.length;
+  // 전역 저장 (자동 추적용)
+  window._preData = preData;
 
   if (!preData.length) {
     document.getElementById('preBody').innerHTML = `<tr><td colspan="11"><div class="empty">예열 중인 코인 없음<br><small>횡보(-6%~+6%) + 조건 충족 + 최소 2회 연속 감지 필요</small></div></td></tr>`;
@@ -2279,7 +2449,7 @@ function sw(name){
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('panel-'+name).classList.add('on');
   if(name==='history')renderHistory();
-  if(name==='pattern')renderPattern();
+  if(name==='pattern')renderLearn();
   if(name==='pullback')fetchPullbackData();
 }
 function setF(f){curFilter=f;['all','long','short'].forEach(x=>document.getElementById('f'+x[0]).classList.toggle('on',x===f));renderScanner();}
@@ -2411,6 +2581,404 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){closeSearch();document.getElementById('detailModal').style.display='none';}
 });
 
+// ════════════════════════════════════════
+//  🧠 결과 추적 + 학습 분석 시스템
+// ════════════════════════════════════════
+
+// 코인 자동 저장 (감지 시점)
+function trackCoin(coin, tabName) {
+  const db = loadTrackDB();
+
+  // 중복 방지 (같은 코인 같은 탭에서 2시간 이내 중복 저장 안 함)
+  const dedupTime = {
+    scanner: 7200000,      // 2시간
+    gunpowder: 3600000,    // 1시간
+    squeeze: 1800000,      // 30분 (빠른 신호)
+    presqueeze: 3600000,   // 1시간
+    pullback: 7200000,     // 2시간
+    cexwallet: 3600000,    // 1시간
+  };
+  const dedupMs = dedupTime[tabName] || 3600000;
+  const recentDupe = db.find(d =>
+    d.symbol === coin.symbol &&
+    d.tab === tabName &&
+    Date.now() - d.timestamp < dedupMs
+  );
+  if (recentDupe) return;
+
+  const cvd = cache.getCVD(coin.fullSym || coin.symbol + 'USDT');
+  const ls = cache.getLS(coin.fullSym || coin.symbol + 'USDT');
+
+  const entry = {
+    id: Date.now() + '_' + coin.symbol,
+    symbol: coin.symbol,
+    fullSym: coin.fullSym || coin.symbol + 'USDT',
+    tab: tabName,
+    timestamp: Date.now(),
+    // 진입 시점 지표
+    score: coin.score || 0,
+    grade: coin.grade || '--',
+    priceAt: coin.price || 0,
+    funding: coin.funding || 0,
+    oi1h: coin.oi1h || 0,
+    oi4h: coin.oi4h || 0,
+    change24h: coin.change24h || 0,
+    volRatio: coin.volRatio || 0,
+    cvdRatio: cvd ? (cvd.emaRatio || cvd.ratio || 0) : 0,
+    cvdTurning: cvd ? (cvd.turning || false) : false,
+    longPct: ls ? ls.longPct : 50,
+    // 숏스퀴즈 정보
+    sqGrade: coin.sq ? coin.sq.grade : null,
+    sqStrength: coin.sq ? coin.sq.strength : null,
+    // 예열 정보
+    preScore: coin.pre ? coin.pre.sc : null,
+    preStreak: coin.pre ? coin.pre.streak : null,
+    // 눌림목 정보
+    pbScore: coin.pb ? coin.pb.score : null,
+    pbDepth: coin.pb ? coin.pb.pullbackDepth : null,
+    pbVerdict: coin.pb ? coin.pb.verdict : null,
+    // 결과 (나중에 채워짐)
+    price24h: null,
+    price48h: null,
+    gainPct24h: null,
+    gainPct48h: null,
+    result: null,    // 'win5' / 'win10' / 'loss' / 'neutral'
+    updatedAt: null,
+  };
+
+  db.push(entry);
+  // 30일 이상 된 데이터 자동 정리
+  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+  const pruned = db.filter(d => d.timestamp > cutoff);
+  saveTrackDB(pruned);
+  updateLearnCount();
+  // Workers KV에도 업로드 (비동기)
+  syncToWorkers([entry]).catch(()=>{});
+}
+
+// 24h/48h 결과 자동 업데이트
+async function updateTrackResults() {
+  const db = loadTrackDB();
+  const now = Date.now();
+  let updated = 0;
+
+  for (const entry of db) {
+    if (entry.result && entry.price48h) continue; // 이미 완료
+
+    const age = now - entry.timestamp;
+    const need24h = age >= 23 * 3600 * 1000 && !entry.price24h;
+    const need48h = age >= 47 * 3600 * 1000 && !entry.price48h;
+
+    if (!need24h && !need48h) continue;
+
+    // 현재 가격 가져오기
+    try {
+      const ticker = await apiFetch(`${BAPI}/fapi/v1/ticker/price?symbol=${entry.fullSym}`);
+      const currentPrice = parseFloat(ticker.price);
+      if (!currentPrice) continue;
+
+      if (need24h) {
+        entry.price24h = currentPrice;
+        entry.gainPct24h = (currentPrice - entry.priceAt) / entry.priceAt * 100;
+      }
+      if (need48h) {
+        entry.price48h = currentPrice;
+        entry.gainPct48h = (currentPrice - entry.priceAt) / entry.priceAt * 100;
+      }
+
+      // 결과 판정 (24h 기준)
+      if (entry.gainPct24h !== null) {
+        if (entry.gainPct24h >= 10) entry.result = 'win10';
+        else if (entry.gainPct24h >= 5) entry.result = 'win5';
+        else if (entry.gainPct24h >= 0) entry.result = 'neutral';
+        else entry.result = 'loss';
+      }
+
+      entry.updatedAt = now;
+      updated++;
+    } catch { continue; }
+  }
+
+  saveTrackDB(db);
+  if (updated > 0) showToast(`✅ ${updated}개 결과 업데이트`);
+  renderLearn();
+}
+
+// 학습 분석 렌더링
+async function renderLearn() {
+  // Workers KV에서 동기화 시도
+  await syncFromWorkers();
+
+  const db = loadTrackDB();
+  const done = db.filter(d => d.result !== null);
+  const tracking = db.filter(d => d.result === null);
+
+  // Workers 통계도 가져오기
+  const wStats = await fetchWorkerStats();
+
+  // 카운트 업데이트
+  document.getElementById('ls-tracking').textContent = tracking.length + (wStats ? ` (서버: ${wStats.tracking||0})` : '');
+  document.getElementById('ls-done').textContent = done.length + (wStats ? ` (서버: ${wStats.done||0})` : '');
+  document.getElementById('tc-learn').textContent = db.length;
+  updateLearnCount();
+
+  if (done.length < 3) {
+    // 결과 없으면 기본 패턴 분석만
+    renderBasicPattern(db);
+    renderTrackTable(db);
+    return;
+  }
+
+  // ━━━ 적중률 계산 ━━━
+  const wins = done.filter(d => d.result === 'win5' || d.result === 'win10');
+  const bigWins = done.filter(d => d.result === 'win10');
+  const winRate = Math.round(wins.length / done.length * 100);
+  const avgGain = done.reduce((s,d)=>s+(d.gainPct24h||0),0) / done.length;
+  const bestGain = Math.max(...done.map(d=>d.gainPct24h||0));
+
+  document.getElementById('ls-winrate').textContent = winRate + '%';
+  document.getElementById('ls-winrate').style.color = winRate >= 60 ? 'var(--green)' : winRate >= 40 ? 'var(--yellow)' : 'var(--red)';
+  document.getElementById('ls-avggain').textContent = (avgGain >= 0 ? '+' : '') + avgGain.toFixed(1) + '%';
+  document.getElementById('ls-avggain').style.color = avgGain >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('ls-best').textContent = '+' + bestGain.toFixed(1) + '%';
+
+  // ━━━ 지표별 적중률 ━━━
+  const indicators = [
+    // 지표별
+    { name: '음펀비', check: d => d.funding < -0.05 },
+    { name: '강한음펀', check: d => d.funding < -0.15 },
+    { name: 'OI4h↑', check: d => d.oi4h > 10 },
+    { name: 'OI4h강↑', check: d => d.oi4h > 30 },
+    { name: 'CVD↑', check: d => d.cvdRatio > 0.05 },
+    { name: 'CVD전환', check: d => d.cvdTurning },
+    { name: '거래량↑', check: d => d.volRatio > 1 },
+    // 탭별 적중률
+    { name: '📡스캐너', check: d => d.tab === 'scanner' },
+    { name: '🔥화약고', check: d => d.tab === 'gunpowder' },
+    { name: '⚡숏스퀴즈', check: d => d.tab === 'squeeze' },
+    { name: '⏳예열', check: d => d.tab === 'presqueeze' },
+    { name: '⬇️눌림목', check: d => d.tab === 'pullback' },
+    { name: '🏛제단지갑', check: d => d.tab === 'cexwallet' },
+    // 등급별
+    { name: 'S급코인', check: d => d.grade === 'S' },
+    { name: 'A급코인', check: d => d.grade === 'A' },
+  ];
+
+  const indStats = indicators.map(ind => {
+    const matched = done.filter(d => ind.check(d));
+    if (matched.length < 2) return null;
+    const indWins = matched.filter(d => d.result === 'win5' || d.result === 'win10');
+    const wr = Math.round(indWins.length / matched.length * 100);
+    const avgG = matched.reduce((s,d)=>s+(d.gainPct24h||0),0) / matched.length;
+    return { name: ind.name, count: matched.length, winRate: wr, avgGain: avgG };
+  }).filter(Boolean).sort((a,b) => b.winRate - a.winRate);
+
+  document.getElementById('learnIndicators').innerHTML = indStats.length
+    ? indStats.map(s => `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <div style="font-size:11px;color:var(--text2);width:70px;flex-shrink:0">${s.name}</div>
+        <div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${s.winRate}%;background:${s.winRate>=65?'var(--green)':s.winRate>=45?'var(--yellow)':'var(--red)'};border-radius:3px"></div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;width:35px;text-align:right;color:${s.winRate>=65?'var(--green)':s.winRate>=45?'var(--yellow)':'var(--red)'}">${s.winRate}%</div>
+        <div style="font-size:9px;color:var(--text-dim);width:50px">${s.count}개 (${s.avgGain>=0?'+':''}${s.avgGain.toFixed(1)}%)</div>
+      </div>`).join('')
+    : '<div class="empty">데이터 부족</div>';
+
+  // ━━━ 최고 조합 패턴 ━━━
+  const combos = [
+    { name: '음펀+OI↑+CVD↑', check: d => d.funding<-0.05 && d.oi4h>10 && d.cvdRatio>0.05 },
+    { name: '강음펀+CVD전환', check: d => d.funding<-0.15 && d.cvdTurning },
+    { name: 'OI강↑+거래량↑', check: d => d.oi4h>30 && d.volRatio>1.5 },
+    { name: '숏스퀴즈+음펀', check: d => (d.sqGrade==='FULL'||d.sqGrade==='HIGH') && d.funding<-0.05 },
+    { name: '예열+CVD전환', check: d => d.preScore>=40 && d.cvdTurning },
+    { name: '눌림+OI유지', check: d => d.pbVerdict==='🎯 진입' && d.oi4h>-5 },
+    { name: '4개조건 동시', check: d => [d.funding<-0.05,d.oi4h>10,d.cvdRatio>0.05,d.volRatio>1].filter(Boolean).length>=4 },
+  ];
+
+  const comboStats = combos.map(c => {
+    const matched = done.filter(d => c.check(d));
+    if (matched.length < 2) return null;
+    const cWins = matched.filter(d => d.result==='win5'||d.result==='win10');
+    const wr = Math.round(cWins.length/matched.length*100);
+    const avgG = matched.reduce((s,d)=>s+(d.gainPct24h||0),0)/matched.length;
+    return { name: c.name, count: matched.length, winRate: wr, avgGain: avgG };
+  }).filter(Boolean).sort((a,b)=>b.winRate-a.winRate);
+
+  document.getElementById('learnCombos').innerHTML = comboStats.length
+    ? comboStats.map((s,i) => `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <div style="font-size:9px;color:var(--text-dim);width:12px">${i+1}</div>
+        <div style="font-size:10px;color:var(--text2);flex:1">${s.name}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${s.winRate>=65?'var(--green)':s.winRate>=45?'var(--yellow)':'var(--red)'}">${s.winRate}%</div>
+        <div style="font-size:9px;color:var(--text-dim)">${s.count}개</div>
+      </div>`).join('')
+    : '<div class="empty">데이터 부족</div>';
+
+  // ━━━ 자동 보정 점수 계산 ━━━
+  // 적중률 높은 지표에 가중치 더 주는 보정값
+  if (indStats.length >= 3) {
+    const topInd = indStats[0];
+    const calibrated = Math.round(50 + (topInd.winRate - 50) * 0.5);
+    document.getElementById('ls-calibrated').textContent = topInd.name + ' ' + calibrated + 'pt';
+  }
+
+  // ━━━ 인사이트 ━━━
+  if (done.length >= 5) {
+    const bestCombo = comboStats[0];
+    const bestInd = indStats[0];
+    const worstInd = indStats[indStats.length-1];
+    document.getElementById('learnInsight').innerHTML = `
+      <strong style="color:var(--green)">🧠 학습 인사이트 (${done.length}개 결과 기반)</strong><br><br>
+      📈 <strong>가장 효과적인 지표:</strong> <span style="color:var(--green)">${bestInd?.name}</span> (적중률 ${bestInd?.winRate}%, ${bestInd?.count}회)<br>
+      🏆 <strong>최고 조합 패턴:</strong> <span style="color:var(--yellow)">${bestCombo?.name}</span> (적중률 ${bestCombo?.winRate}%, ${bestCombo?.count}회)<br>
+      ⚠️ <strong>신뢰도 낮은 지표:</strong> <span style="color:var(--red)">${worstInd?.name}</span> (적중률 ${worstInd?.winRate}%)<br>
+      💡 <strong>권장 전략:</strong> ${winRate >= 60
+        ? '현재 시그널 신뢰도 높음 — 조건 충족 시 적극 활용'
+        : winRate >= 45
+        ? '보통 신뢰도 — 조건 2~3개 동시 충족 시만 진입 고려'
+        : '신뢰도 낮음 — 추가 데이터 축적 필요, 신중하게 접근'}
+    `;
+  }
+
+  renderTrackTable(db);
+
+  // Workers 서버 통계 표시
+  fetchWorkerStats().then(stats => {
+    if (!stats) return;
+    const el = document.getElementById('learnInsight');
+    if (!el || !stats.byTab) return;
+    const tabRows = Object.entries(stats.byTab)
+      .sort((a,b) => (b[1].winRate||0) - (a[1].winRate||0))
+      .map(([tab,s]) => `<span style="margin-right:12px"><strong style="color:var(--blue)">${tab}</strong> 적중률 ${s.winRate}% (${s.done}개)</span>`)
+      .join('');
+    if (tabRows) {
+      el.innerHTML += `<br><br><strong style="color:var(--blue)">☁️ 서버 누적 통계 (${stats.total}개)</strong><br>${tabRows}`;
+    }
+  }).catch(()=>{});
+}
+
+function renderBasicPattern(db) {
+  // 결과 없어도 기본 통계는 보여줌
+  if (!db.length) return;
+  const byTab = {};
+  db.forEach(d => { byTab[d.tab] = (byTab[d.tab]||0)+1; });
+  document.getElementById('learnInsight').innerHTML =
+    `🧠 현재 <strong style="color:var(--green)">${db.length}개</strong> 코인 추적 중 · 결과 완료 필요<br>
+     탭별: ${Object.entries(byTab).map(([t,c])=>`${t} ${c}개`).join(' · ')}<br>
+     <span style="color:var(--text-dim);font-size:10px">24시간 후 [결과 업데이트] 버튼을 누르면 적중률 분석이 시작됩니다</span>`;
+}
+
+function renderTrackTable(db) {
+  if (!db.length) {
+    document.getElementById('trackBody').innerHTML =
+      `<tr><td colspan="11"><div class="empty">추적 데이터 없음<br><small>스캐너 감지 코인이 자동 저장됩니다</small></div></td></tr>`;
+    return;
+  }
+
+  const sorted = [...db].sort((a,b) => b.timestamp - a.timestamp);
+  document.getElementById('trackBody').innerHTML = sorted.map(d => {
+    const age = Date.now() - d.timestamp;
+    const ageStr = age < 3600000 ? Math.round(age/60000)+'분전'
+                 : age < 86400000 ? Math.round(age/3600000)+'시간전'
+                 : Math.round(age/86400000)+'일전';
+    const resultColor = d.result==='win10'?'var(--green)':d.result==='win5'?'#88ff88':d.result==='loss'?'var(--red)':'var(--text-dim)';
+    const resultLabel = d.result==='win10'?'🎯+10%↑':d.result==='win5'?'✅+5%↑':d.result==='loss'?'❌손실':d.result==='neutral'?'➡️보합':'⏳대기';
+    const tabColor = d.tab==='squeeze'?'var(--orange)':d.tab==='presqueeze'?'var(--purple)':d.tab==='pullback'?'#00ddff':'var(--green)';
+
+    return `<tr style="${d.result==='win10'?'background:rgba(0,255,136,.03)':d.result==='loss'?'background:rgba(255,51,85,.02)':''}">
+      <td class="mono dim" style="font-size:10px">${ageStr}</td>
+      <td class="sym">${d.symbol}</td>
+      <td><span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(0,0,0,.3);border:1px solid ${tabColor};color:${tabColor}">${tabLabel}</span></td>
+      <td><span class="score-num ${scCls(d.score)}">${d.score}</span></td>
+      <td class="mono" style="font-size:10px">$${d.priceAt<1?d.priceAt.toFixed(5):d.priceAt.toLocaleString()}</td>
+      <td class="mono ${d.funding<0?'pos':'neg'}" style="font-size:10px">${d.funding.toFixed(3)}%</td>
+      <td class="mono ${d.oi4h>=0?'pos':'neg'}" style="font-size:10px">${fmt(d.oi4h,1)}%</td>
+      <td class="mono ${d.cvdRatio>=0?'pos':'neg'}" style="font-size:10px">${(d.cvdRatio*100).toFixed(1)}%</td>
+      <td class="mono" style="font-size:10px">${d.price24h?'$'+(d.price24h<1?d.price24h.toFixed(5):d.price24h.toLocaleString()):'⏳'}</td>
+      <td class="mono" style="font-size:10px;color:${d.gainPct24h!==null?(d.gainPct24h>=0?'var(--green)':'var(--red)'):'var(--text-dim)'}">${d.gainPct24h!==null?(d.gainPct24h>=0?'+':'')+d.gainPct24h.toFixed(1)+'%':'--'}</td>
+      <td><span style="font-size:10px;font-weight:700;color:${resultColor}">${resultLabel}</span></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('trackUpdateTime').textContent = `총 ${db.length}개`;
+}
+
+function updateLearnCount() {
+  const db = loadTrackDB();
+  document.getElementById('tc-learn').textContent = db.length;
+  const done = db.filter(d=>d.result!==null);
+  document.getElementById('ls-tracking').textContent = db.filter(d=>!d.result).length;
+  document.getElementById('ls-done').textContent = done.length;
+}
+
+function clearTrackDB() {
+  if(!confirm('추적 데이터를 모두 삭제할까요?')) return;
+  localStorage.removeItem(TRACK_KEY);
+  renderLearn();
+  showToast('🗑 추적 데이터 삭제됨');
+}
+
+function exportTrackCSV() {
+  const db = loadTrackDB();
+  if(!db.length){showToast('데이터 없음');return;}
+  const rows = [['감지시각','심볼','탭','점수','진입가','펀딩','OI4h','CVD','24h가격','수익률24h','결과']];
+  db.forEach(d => {
+    rows.push([
+      new Date(d.timestamp).toLocaleString('ko-KR'),
+      d.symbol, d.tab, d.score,
+      d.priceAt, d.funding.toFixed(4), d.oi4h.toFixed(2),
+      (d.cvdRatio*100).toFixed(2),
+      d.price24h||'', d.gainPct24h!==null?d.gainPct24h.toFixed(2)+'%':'',
+      d.result||'pending'
+    ]);
+  });
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,﻿' + encodeURIComponent(rows.map(r=>r.join(',')).join('
+'));
+  a.download = `track_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  showToast('📥 CSV 다운로드');
+}
+
+// ━━━ 자동 저장 훅 ━━━
+// 스캐너 저장 시 추적 DB에도 자동 기록
+const _origSaveCoins = saveCoins;
+
+function autoTrackFromData() {
+  // ① 스캐너 S/A급 자동 추적
+  allData.filter(d => d.grade === 'S' || d.grade === 'A')
+    .forEach(d => trackCoin(d, 'scanner'));
+
+  // ② 화약고 (Layer2+ 점수60+) 자동 추적
+  allData.filter(d => d.layer >= 2 && d.score >= 60)
+    .forEach(d => trackCoin(d, 'gunpowder'));
+
+  // ③ 숏스퀴즈 FULL/HIGH 자동 추적
+  sqData.filter(d => d.sq.grade === 'FULL' || d.sq.grade === 'HIGH')
+    .forEach(d => trackCoin({ ...d, sq: d.sq }, 'squeeze'));
+
+  // ④ 예열중 자동 추적 (preData는 renderPreSqueeze 후 전역 접근)
+  if (window._preData) {
+    window._preData.filter(d => d.pre.sc >= 50 || d.pre.streak >= 3)
+      .forEach(d => trackCoin({ ...d, pre: d.pre }, 'presqueeze'));
+  }
+
+  // ⑤ 눌림목 자동 추적
+  if (window._pbData) {
+    window._pbData.filter(d => d.pb.verdict === '🎯 진입' || d.pb.verdict === '👀 대기')
+      .forEach(d => trackCoin({ ...d, pb: d.pb }, 'pullback'));
+  }
+
+  // ⑥ 제단지갑 대량유출 (매집 신호) 추적
+  if (window._cexData) {
+    window._cexData.filter(d => d.isOutflow && d.strength > 40)
+      .forEach(d => trackCoin(d, 'cexwallet'));
+  }
+
+  updateLearnCount();
+}
+
 function startTimer(){
   refreshTimer=setInterval(()=>{
     countdown--;
@@ -2422,6 +2990,11 @@ function startTimer(){
 updateSavedCount();
 fetchAll();
 startTimer();
+// 시작 시 Workers KV 자동 동기화
+setTimeout(async () => {
+  await syncFromWorkers();
+  updateLearnCount();
+}, 3000);
 </script>
 </body>
 </html>
